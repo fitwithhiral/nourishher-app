@@ -634,124 +634,232 @@ function LimitScreen({genCount, onUpgrade, onHome, expired}){
   </div>;
 }
 
+// ─── SESSION HELPERS (persist across page refresh) ───
+function saveSession(data) {
+  try { window.localStorage.setItem("nh_session", JSON.stringify(data)); } catch(e) {}
+}
+function loadSession() {
+  try { const d = window.localStorage.getItem("nh_session"); return d ? JSON.parse(d) : null; } catch(e) { return null; }
+}
+function clearSession() {
+  try { window.localStorage.removeItem("nh_session"); } catch(e) {}
+}
+
+// ─── PAYMENT SUCCESS SCREEN ───
+function PaymentSuccessScreen({user, onContinue}) {
+  return <div style={{minHeight:"100vh",background:`linear-gradient(170deg,${C.bg},${C.bgW})`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:28}}>
+    <Fi delay={100}><div style={{width:80,height:80,borderRadius:"50%",background:C.grL,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16,animation:"bounceIn 0.6s ease"}}><span style={{fontSize:40}}>🎉</span></div></Fi>
+    <Fi delay={250}><h2 style={{fontFamily:pf,fontSize:26,fontWeight:600,color:C.dk,textAlign:"center"}}>Payment Successful!</h2></Fi>
+    <Fi delay={350}><p style={{fontFamily:dm,fontSize:15,color:C.mt,textAlign:"center",maxWidth:320,lineHeight:1.6,marginTop:8}}>Welcome to Premium, {user?.name || "there"}! Your full 28-day plan with unlimited regenerations is now unlocked.</p></Fi>
+    <Fi delay={500}><div style={{background:C.wh,borderRadius:16,padding:18,marginTop:20,width:"100%",maxWidth:340}}>
+      {["✅ Full 28-day meal + workout plan","✅ Unlimited plan regenerations","✅ Complete grocery lists","✅ Progress tracking dashboard","✅ Switch between saved plans"].map((f,i) => <div key={i} style={{padding:"6px 0"}}><span style={{fontFamily:dm,fontSize:14,color:C.dk}}>{f}</span></div>)}
+    </div></Fi>
+    <Fi delay={650}><Btn onClick={onContinue} style={{marginTop:20,animation:"glow 2s ease infinite"}}>Go to My Dashboard →</Btn></Fi>
+    <Fi delay={750}><p style={{fontFamily:dm,fontSize:11,color:C.mtL,marginTop:12}}>A confirmation email has been sent to your inbox.</p></Fi>
+  </div>;
+}
+
+// ─── ADD TO HOME SCREEN PROMPT ───
+function AddToHomePrompt({onDismiss}) {
+  const[show,setShow]=useState(false);
+  useEffect(()=>{
+    const dismissed = window.localStorage.getItem("nh_a2hs_dismissed");
+    if(!dismissed) setTimeout(()=>setShow(true), 5000);
+  },[]);
+  if(!show) return null;
+  const dismiss=()=>{setShow(false);window.localStorage.setItem("nh_a2hs_dismissed","1");if(onDismiss)onDismiss()};
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  return <div style={{position:"fixed",bottom:70,left:12,right:12,background:C.wh,borderRadius:16,padding:16,boxShadow:"0 8px 40px rgba(0,0,0,.12)",zIndex:100,animation:"slideUp 0.4s ease",border:`1px solid ${C.peachL}`}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+      <div style={{flex:1}}>
+        <div style={{fontFamily:dm,fontSize:14,fontWeight:600,color:C.dk}}>📱 Add to Home Screen</div>
+        <p style={{fontFamily:dm,fontSize:12,color:C.mt,marginTop:4,lineHeight:1.4}}>
+          {isIOS ? "Tap the share button ⬆️ in Safari, then \"Add to Home Screen\" for quick access." : "Tap the menu (⋮) in your browser, then \"Add to Home Screen\" for instant access."}
+        </p>
+      </div>
+      <button onClick={dismiss} style={{background:"none",border:"none",fontSize:18,color:C.mtL,cursor:"pointer",padding:"0 0 0 8px"}}>✕</button>
+    </div>
+  </div>;
+}
+
 // ─── MAIN APP ───
 export default function App(){
   const[screen,setScreen]=useState("welcome");const[step,setStep]=useState(0);const[answers,setAnswers]=useState({});const[user,setUser]=useState(null);const[plan,setPlan]=useState(null);const[progress,setProgress]=useState(0);
   const[genCount,setGenCount]=useState(0);const[isPaid,setIsPaid]=useState(false);const[planHistory,setPlanHistory]=useState([]);const[planCreatedAt,setPlanCreatedAt]=useState(null);const[expired,setExpired]=useState(false);
+  const[showA2HS,setShowA2HS]=useState(true);
 
-  // Check URL for payment success + 7-day expiry on mount
+  // On mount: restore session + check for Stripe payment redirect
   useEffect(()=>{
-    try {
-      const params = new URLSearchParams(window.location.search);
-      if(params.get("payment")==="success"){
-        setIsPaid(true);
-        setExpired(false);
-        if(user?.leadId) sbUpdate("leads",user.leadId,{has_paid:true,paid_at:new Date().toISOString()});
-      }
-    } catch(e){}
-  },[]);
+    const init = async () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const isPaymentReturn = params.get("payment") === "success";
+
+        // Try to restore saved session
+        const session = loadSession();
+
+        if (isPaymentReturn && session?.email) {
+          // User just paid — look them up and mark as paid
+          const lead = await sbFind("leads", "email", session.email);
+          if (lead) {
+            await sbUpdate("leads", lead.id, { has_paid: true, paid_at: new Date().toISOString() });
+            setUser({ name: lead.name, email: lead.email, leadId: lead.id });
+            setIsPaid(true);
+            setExpired(false);
+            setGenCount(lead.generation_count || 0);
+            setAnswers({ goal: lead.goal, diet: lead.diet_type, fitness: lead.fitness_level, time: lead.cooking_time, focus: lead.focus_areas });
+            // Load their plan
+            const ep = await sbFind("plans", "lead_id", lead.id);
+            if (ep) {
+              setPlan({ meal_plan: ep.meal_plan, workout_plan: ep.workout_plan, grocery_list: ep.grocery_list });
+              setPlanCreatedAt(ep.created_at);
+            }
+            saveSession({ email: lead.email, name: lead.name, leadId: lead.id, isPaid: true });
+            setScreen("payment-success");
+            // Clean URL
+            window.history.replaceState({}, "", window.location.pathname);
+          }
+        } else if (session?.email) {
+          // Returning user — auto-login
+          const lead = await sbFind("leads", "email", session.email);
+          if (lead) {
+            setUser({ name: lead.name, email: lead.email, leadId: lead.id });
+            setGenCount(lead.generation_count || 0);
+            setIsPaid(lead.has_paid || false);
+            setAnswers({ goal: lead.goal, diet: lead.diet_type, fitness: lead.fitness_level, time: lead.cooking_time, focus: lead.focus_areas });
+            const ep = await sbFind("plans", "lead_id", lead.id);
+            if (ep) {
+              setPlan({ meal_plan: ep.meal_plan, workout_plan: ep.workout_plan, grocery_list: ep.grocery_list });
+              setPlanCreatedAt(ep.created_at);
+              // Check expiry for free users
+              if (!lead.has_paid && ep.created_at) {
+                const daysPassed = Math.floor((new Date() - new Date(ep.created_at)) / (86400000));
+                if (daysPassed >= FREE_ACCESS_DAYS) { setExpired(true); setScreen("limit"); return; }
+              }
+              setScreen("dashboard");
+            } else {
+              setScreen("quiz");
+            }
+          }
+        }
+      } catch(e) { console.warn("Init error:", e); }
+    };
+    init();
+  }, []);
 
   // Check 7-day expiry for free users
   useEffect(()=>{
     if(!isPaid && planCreatedAt){
-      const created = new Date(planCreatedAt);
-      const now = new Date();
-      const daysPassed = Math.floor((now - created) / (1000*60*60*24));
-      if(daysPassed >= FREE_ACCESS_DAYS){
-        setExpired(true);
-      }
+      const daysPassed = Math.floor((Date.now() - new Date(planCreatedAt).getTime()) / (86400000));
+      if(daysPassed >= FREE_ACCESS_DAYS) setExpired(true);
     }
   },[isPaid, planCreatedAt]);
 
-  const onEmail=u=>{setUser(u);setScreen("quiz")};
-
-  const onLogin=async lead=>{
-    setUser({name:lead.name,email:lead.email,leadId:lead.id});
-    setAnswers({goal:lead.goal,diet:lead.diet_type,fitness:lead.fitness_level,time:lead.cooking_time,focus:lead.focus_areas});
-    setGenCount(lead.generation_count||0);
-    setIsPaid(lead.has_paid||false);
-    const ep=await sbFind("plans","lead_id",lead.id);
-    if(ep){
-      setPlan({meal_plan:ep.meal_plan,workout_plan:ep.workout_plan,grocery_list:ep.grocery_list});
-      setPlanCreatedAt(ep.created_at);
-      // Check expiry for free users
-      if(!lead.has_paid && ep.created_at){
-        const daysPassed = Math.floor((new Date() - new Date(ep.created_at)) / (1000*60*60*24));
-        if(daysPassed >= FREE_ACCESS_DAYS){ setExpired(true); setScreen("limit"); return; }
-      }
-      setScreen("dashboard");
-    }
-    else setScreen("quiz");
+  const onEmail = (u) => {
+    setUser(u);
+    saveSession({ email: u.email, name: u.name, leadId: u.leadId, isPaid: false });
+    setScreen("quiz");
   };
 
-  const onAnswer=(id,val)=>{setAnswers(p=>({...p,[id]:val}));if(!QUIZ[step].multi&&step<QUIZ.length-1)setTimeout(()=>setStep(s=>s+1),250)};
+  const onLogin = async (lead) => {
+    setUser({ name: lead.name, email: lead.email, leadId: lead.id });
+    setAnswers({ goal: lead.goal, diet: lead.diet_type, fitness: lead.fitness_level, time: lead.cooking_time, focus: lead.focus_areas });
+    setGenCount(lead.generation_count || 0);
+    setIsPaid(lead.has_paid || false);
+    saveSession({ email: lead.email, name: lead.name, leadId: lead.id, isPaid: lead.has_paid || false });
+    const ep = await sbFind("plans", "lead_id", lead.id);
+    if (ep) {
+      setPlan({ meal_plan: ep.meal_plan, workout_plan: ep.workout_plan, grocery_list: ep.grocery_list });
+      setPlanCreatedAt(ep.created_at);
+      if (!lead.has_paid && ep.created_at) {
+        const daysPassed = Math.floor((new Date() - new Date(ep.created_at)) / (86400000));
+        if (daysPassed >= FREE_ACCESS_DAYS) { setExpired(true); setScreen("limit"); return; }
+      }
+      setScreen("dashboard");
+    } else { setScreen("quiz"); }
+  };
 
-  const onNext=async()=>{
-    if(step<QUIZ.length-1){setStep(s=>s+1);return}
-    setScreen("loading");setProgress(0);
+  const onAnswer = (id, val) => {
+    setAnswers(p => ({ ...p, [id]: val }));
+    if (!QUIZ[step].multi && step < QUIZ.length - 1) setTimeout(() => setStep(s => s + 1), 250);
+  };
+
+  const onNext = async () => {
+    if (step < QUIZ.length - 1) { setStep(s => s + 1); return; }
+    setScreen("loading"); setProgress(0);
 
     const newCount = genCount + 1;
     setGenCount(newCount);
 
-    if(user?.leadId)sbUpdate("leads",user.leadId,{goal:answers.goal,diet_type:answers.diet,fitness_level:answers.fitness,cooking_time:answers.time,focus_areas:answers.focus||[],generation_count:newCount});
+    if (user?.leadId) sbUpdate("leads", user.leadId, { goal: answers.goal, diet_type: answers.diet, fitness_level: answers.fitness, cooking_time: answers.time, focus_areas: answers.focus || [], generation_count: newCount });
 
     const result = makeFallback(answers);
     const now = new Date().toISOString();
     setPlanCreatedAt(now);
 
-    let p=0;
-    const iv=setInterval(()=>{
-      p+=2;setProgress(Math.min(p,100));
-      if(p>=100){clearInterval(iv);setTimeout(()=>{
-        setPlan(result);
-        // Save to history
-        setPlanHistory(prev => [...prev, {plan:result, answers:{...answers}, createdAt:now, label:`Plan ${prev.length+1}: ${answers.goal} (${answers.diet})`}]);
-        if(user?.leadId)sbInsert("plans",{lead_id:user.leadId,meal_plan:result.meal_plan,workout_plan:result.workout_plan,grocery_list:result.grocery_list});
-        setScreen("preview");
-      },500)}
-    },50);
-
-    aiGenerate(answers).then(function(aiResult){
-      if(aiResult && aiResult.meal_plan && aiResult.meal_plan.length>0){
-        setPlan(aiResult);
-        if(user?.leadId)sbInsert("plans",{lead_id:user.leadId,meal_plan:aiResult.meal_plan,workout_plan:aiResult.workout_plan,grocery_list:aiResult.grocery_list});
+    let p = 0;
+    const iv = setInterval(() => {
+      p += 2; setProgress(Math.min(p, 100));
+      if (p >= 100) {
+        clearInterval(iv);
+        setTimeout(() => {
+          setPlan(result);
+          setPlanHistory(prev => [...prev, { plan: result, answers: { ...answers }, createdAt: now, label: "Plan " + (prev.length + 1) + ": " + answers.goal + " (" + answers.diet + ")" }]);
+          if (user?.leadId) sbInsert("plans", { lead_id: user.leadId, meal_plan: result.meal_plan, workout_plan: result.workout_plan, grocery_list: result.grocery_list });
+          setScreen("preview");
+        }, 500);
       }
-    }).catch(function(){});
+    }, 50);
+
+    aiGenerate(answers).then(function(aiResult) {
+      if (aiResult && aiResult.meal_plan && aiResult.meal_plan.length > 0) {
+        setPlan(aiResult);
+        if (user?.leadId) sbInsert("plans", { lead_id: user.leadId, meal_plan: aiResult.meal_plan, workout_plan: aiResult.workout_plan, grocery_list: aiResult.grocery_list });
+      }
+    }).catch(function() {});
   };
 
-  const onBack=()=>{if(step>0)setStep(s=>s-1);else setScreen("email")};
+  const onBack = () => { if (step > 0) setStep(s => s - 1); else setScreen("email"); };
 
-  const onRegen=()=>{
-    if(!isPaid && genCount >= MAX_FREE_GENS){
-      setScreen("limit");
-      return;
-    }
-    setStep(0);setPlan(null);setProgress(0);setScreen("quiz");
+  const onRegen = () => {
+    if (!isPaid && genCount >= MAX_FREE_GENS) { setScreen("limit"); return; }
+    setStep(0); setPlan(null); setProgress(0); setScreen("quiz");
   };
 
-  const switchPlan=(idx)=>{
+  const switchPlan = (idx) => {
     const h = planHistory[idx];
-    if(h){ setPlan(h.plan); setAnswers(h.answers); }
+    if (h) { setPlan(h.plan); setAnswers(h.answers); }
   };
 
-  const onUpgrade=()=>window.open(STRIPE_LINK,"_blank");
-  const reset=()=>{setScreen("welcome");setStep(0);setAnswers({});setUser(null);setPlan(null);setProgress(0);setGenCount(0);setIsPaid(false);setPlanHistory([]);setExpired(false)};
+  const onUpgrade = () => {
+    // Save session before leaving so we can restore after Stripe redirect
+    if (user) saveSession({ email: user.email, name: user.name, leadId: user.leadId, isPaid: false });
+    window.open(STRIPE_LINK, "_blank");
+  };
+
+  const reset = () => {
+    clearSession();
+    setScreen("welcome"); setStep(0); setAnswers({}); setUser(null); setPlan(null); setProgress(0); setGenCount(0); setIsPaid(false); setPlanHistory([]); setExpired(false);
+  };
 
   // If expired, show limit screen
-  if(expired && !isPaid && screen==="dashboard") {
-    return <div style={{maxWidth:480,margin:"0 auto",background:C.bg,minHeight:"100vh"}}><style>{CSS}</style>
-      <LimitScreen genCount={genCount} onUpgrade={onUpgrade} onHome={reset} expired={true}/>
+  if (expired && !isPaid && screen === "dashboard") {
+    return <div style={{ maxWidth: 480, margin: "0 auto", background: C.bg, minHeight: "100vh" }}>
+      <style>{CSS}</style>
+      <LimitScreen genCount={genCount} onUpgrade={onUpgrade} onHome={reset} expired={true} />
     </div>;
   }
 
-  return <div style={{maxWidth:480,margin:"0 auto",background:C.bg,minHeight:"100vh",position:"relative",overflow:"hidden"}}>
+  return <div style={{ maxWidth: 480, margin: "0 auto", background: C.bg, minHeight: "100vh", position: "relative", overflow: "hidden" }}>
     <style>{CSS}</style>
-    {screen==="welcome"&&<WelcomeScreen onStart={()=>setScreen("email")}/>}
-    {screen==="email"&&<EmailScreen onSubmit={onEmail} onLogin={onLogin}/>}
-    {screen==="quiz"&&<QuizScreen step={step} answers={answers} onAnswer={onAnswer} onBack={onBack} onNext={onNext}/>}
-    {screen==="loading"&&<LoadingScreen progress={progress}/>}
-    {screen==="preview"&&<PreviewScreen plan={plan} answers={answers} user={user} onUnlock={()=>setScreen("dashboard")}/>}
-    {screen==="limit"&&<LimitScreen genCount={genCount} onUpgrade={onUpgrade} onHome={reset} expired={expired}/>}
-    {screen==="dashboard"&&<DashScreen plan={plan} answers={answers} user={user} onRegen={onRegen} onReset={reset} isPaid={isPaid} genCount={genCount} onUpgrade={onUpgrade} planHistory={planHistory} switchPlan={switchPlan} planCreatedAt={planCreatedAt}/>}
+    {screen === "welcome" && <WelcomeScreen onStart={() => setScreen("email")} />}
+    {screen === "email" && <EmailScreen onSubmit={onEmail} onLogin={onLogin} />}
+    {screen === "quiz" && <QuizScreen step={step} answers={answers} onAnswer={onAnswer} onBack={onBack} onNext={onNext} />}
+    {screen === "loading" && <LoadingScreen progress={progress} />}
+    {screen === "preview" && <PreviewScreen plan={plan} answers={answers} user={user} onUnlock={() => setScreen("dashboard")} />}
+    {screen === "payment-success" && <PaymentSuccessScreen user={user} onContinue={() => setScreen("dashboard")} />}
+    {screen === "limit" && <LimitScreen genCount={genCount} onUpgrade={onUpgrade} onHome={reset} expired={expired} />}
+    {screen === "dashboard" && <DashScreen plan={plan} answers={answers} user={user} onRegen={onRegen} onReset={reset} isPaid={isPaid} genCount={genCount} onUpgrade={onUpgrade} planHistory={planHistory} switchPlan={switchPlan} planCreatedAt={planCreatedAt} />}
+    {showA2HS && screen === "dashboard" && <AddToHomePrompt onDismiss={() => setShowA2HS(false)} />}
   </div>;
 }
