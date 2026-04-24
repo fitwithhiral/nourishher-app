@@ -64,57 +64,41 @@ async function aiGenerate(answers, isPaid = false) {
     "Improve Digestion": "Gentle yoga, walking, core work, breathwork, light strength. Low intensity. 3-4 workout days + 3-4 active recovery days."
   };
 
-  const p = `You are Hiral, a certified NASM fitness coach specializing in women's wellness. Create a genuinely UNIQUE and personalized ${planLabel} meal + workout plan with VARIETY across all days — NO repetition, every day different recipes.
+  const p = `Create a personalized ${planLabel} meal + workout plan. Return ONLY valid JSON, no markdown.
 
-USER PROFILE:
-- Goal: ${answers.goal}
-- Diet: ${answers.diet}
-- Fitness Level: ${answers.fitness}
-- Cooking Time: ${answers.time}
-- Focus Areas: ${(answers.focus||[]).join(", ") || "general wellness"}
+USER: ${answers.goal} goal, ${answers.diet}, ${answers.fitness} fitness, ${answers.time} cook time, focus: ${(answers.focus||[]).join(", ") || "general"}
+WORKOUT: ${workoutGuidance[answers.goal] || "Balanced mix of strength, cardio, recovery."}
+${gujarati ? "INCLUDE Gujarati dishes: dhokla, thepla, undhiyu, dal dhokli, handvo, khandvi, fafda, khaman.\n" : ""}
+RULES:
+- ${totalDays} unique days (NO meal repeats across days)
+- 4 meals/day: Breakfast, Lunch, Snack, Dinner
+- ${answers.diet} foods ONLY
+- 3-4 ingredients, 3 brief instructions per recipe (keep concise!)
+- High protein (25-40g per meal)
+- 1-2 rest/recovery days per week for workouts
 
-WORKOUT STYLE FOR THIS GOAL: ${workoutGuidance[answers.goal] || "Balanced mix of strength, cardio, and recovery."}
-
-${gujarati ? "SPECIAL: Include authentic Gujarati dishes like dhokla, thepla, undhiyu, dal dhokli, handvo, khandvi, fafda, khaman, bhakri, shrikhand throughout the week." : ""}
-
-STRICT RULES:
-- Return ONLY valid JSON, no markdown, no code fences, no commentary
-- ${answers.diet} foods ONLY (never violate this)
-- ${totalDays} days total
-- 4 meals per day: Breakfast, Lunch, Snack, Dinner
-- Each recipe must have 3-6 ingredients and 3-5 instructions
-- Every single day must have DIFFERENT meals from other days (no repeats across ${totalDays} days)
-- ${answers.time === "15-20 min" ? "Keep ALL recipes under 20 minutes prep" : answers.time === "30-40 min" ? "Recipes 20-40 min prep" : "Recipes can be 30-60 min prep"}
-- High protein (25-40g per main meal)
-- Include calories, protein(g), carbs(g), fat(g) for EACH meal
-- Workouts: ${answers.fitness} level intensity, include 1-2 rest/active recovery days per week
-- Use appropriate emoji for each meal (🥣🥗🍳🥘🍛🐟🌯 etc) and workout (🦵💪⚡🧘🍑🏃😴 etc)
-
-JSON FORMAT (return EXACTLY this structure):
+JSON FORMAT:
 {
   "meal_plan": [
     {"day":"Monday","week":1,"dayOfPlan":1,"meals":[
-      {"time":"Breakfast","name":"Recipe Name","emoji":"🥣","cal":380,"protein":"24g","carbs":"42g","fat":"14g","prep_time":"15 min","desc":"Short appetizing description","ingredients":["item 1","item 2","item 3"],"instructions":["Step 1","Step 2","Step 3"]},
-      {"time":"Lunch","name":"...","emoji":"🥗",...},
-      {"time":"Snack","name":"...","emoji":"🍎",...},
-      {"time":"Dinner","name":"...","emoji":"🍛",...}
-    ]},
-    ... (${totalDays} days total)
+      {"time":"Breakfast","name":"X","emoji":"🥣","cal":380,"protein":"24g","carbs":"42g","fat":"14g","prep_time":"15 min","desc":"brief","ingredients":["a","b","c"],"instructions":["step1","step2","step3"]},
+      {"time":"Lunch",...},
+      {"time":"Snack",...},
+      {"time":"Dinner",...}
+    ]}
   ],
   "workout_plan": [
-    {"day":"Monday","week":1,"dayOfPlan":1,"name":"Workout Name","icon":"🦵","duration":"30 min","exercises":[
-      {"name":"Exercise Name","detail":"3×12"},
-      ...
-    ]},
-    ... (${totalDays} days total)
+    {"day":"Monday","week":1,"dayOfPlan":1,"name":"X","icon":"🦵","duration":"30 min","exercises":[{"name":"X","detail":"3×12"}]}
   ],
   "grocery_list": [
-    {"category":"🥬 Fresh Produce","items":["item 1","item 2",...]},
-    {"category":"🍗 Proteins","items":[...]},
-    {"category":"🌾 Grains","items":[...]},
-    {"category":"🥜 Pantry","items":[...]}
+    {"category":"🥬 Produce","items":["a","b"]},
+    {"category":"🍗 Proteins","items":["a","b"]},
+    {"category":"🌾 Grains","items":["a","b"]},
+    {"category":"🥜 Pantry","items":["a","b"]}
   ]
-}`;
+}
+
+Keep descriptions brief. Keep instructions to 3 short steps. Every day of the ${totalDays}-day plan must have unique recipes.`;
 
   try {
     console.log("📡 Calling Anthropic API...");
@@ -128,7 +112,7 @@ JSON FORMAT (return EXACTLY this structure):
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-5-20250929",
-        max_tokens: isPaid ? 16000 : 7000,
+        max_tokens: isPaid ? 32000 : 16000,
         messages: [{ role: "user", content: p }]
       })
     });
@@ -141,7 +125,10 @@ JSON FORMAT (return EXACTLY this structure):
     }
 
     const d = await r.json();
-    console.log("✅ Got response, content length:", d.content?.length);
+    console.log("✅ Got response. Stop reason:", d.stop_reason, "| Tokens used:", d.usage?.output_tokens);
+    if (d.stop_reason === "max_tokens") {
+      console.warn("⚠️ Response hit max_tokens limit — was cut off!");
+    }
     const txt = d.content?.map(function(b) { return b.text || ""; }).join("") || "";
     console.log("📝 Raw AI text (first 200 chars):", txt.substring(0,200));
     const cleaned = txt.replace(/```json|```/g, "").trim();
@@ -151,7 +138,7 @@ JSON FORMAT (return EXACTLY this structure):
       parsed = JSON.parse(cleaned);
     } catch(parseErr) {
       console.warn("❌ JSON parse failed:", parseErr.message);
-      console.log("Full AI text was:", txt);
+      console.log("Full AI text length:", txt.length);
       return null;
     }
 
