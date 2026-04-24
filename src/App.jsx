@@ -787,18 +787,25 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
 }
 
 // ─── GENERATION LIMIT SCREEN ───
-function LimitScreen({genCount, onUpgrade, onHome, expired}){
+function LimitScreen({genCount, onUpgrade, onHome, expired, user, onSignupDifferent}){
   return <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:28}}>
-    <Fi delay={100}><div style={{width:70,height:70,borderRadius:"50%",background:`${C.coral}12`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16}}><span style={{fontSize:36}}>{expired ? "⏰" : "🔒"}</span></div></Fi>
-    <Fi delay={200}><h2 style={{fontFamily:pf,fontSize:24,fontWeight:600,color:C.dk,textAlign:"center"}}>{expired ? "Your free plan has expired" : "You've used all "+MAX_FREE_GENS+" free plans"}</h2></Fi>
-    <Fi delay={300}><p style={{fontFamily:dm,fontSize:14,color:C.mt,textAlign:"center",maxWidth:320,lineHeight:1.6,marginTop:8}}>{expired ? "Your 7-day free access has ended. Upgrade to keep your plan and unlock the full 28-day program." : "Upgrade to unlock unlimited plan generations and a full 28-day program."}</p></Fi>
-    <Fi delay={400}><div style={{background:C.wh,borderRadius:16,padding:18,marginTop:20,width:"100%",maxWidth:340}}>
-      {["Unlimited plan regenerations","Full 28-day meal + workout plan","Complete grocery lists","Progress tracking dashboard","Switch between saved plans"].map((f,i) => <div key={i} style={{display:"flex",gap:8,alignItems:"center",padding:"5px 0"}}><span style={{color:C.gr,fontSize:13}}>✓</span><span style={{fontFamily:dm,fontSize:13,color:C.mt}}>{f}</span></div>)}
-      <div style={{display:"flex",alignItems:"baseline",gap:6,margin:"14px 0 4px"}}><span style={{fontFamily:dm,fontSize:13,color:C.mtL,textDecoration:"line-through"}}>$29.99 USD</span><span style={{fontFamily:pf,fontSize:30,fontWeight:700,color:C.coral}}>$9.99</span><span style={{fontFamily:dm,fontSize:11,color:C.mtL}}>USD • one-time</span></div>
-      <Btn full onClick={onUpgrade} style={{marginTop:10}}>Upgrade Now — $9.99 USD</Btn>
-      <p style={{fontFamily:dm,fontSize:10,color:C.mtL,textAlign:"center",marginTop:6}}>🔒 Secure payment via Stripe</p>
+    <Fi delay={100}><div style={{width:70,height:70,borderRadius:"50%",background:`${C.coral}12`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16,animation:"float 3s ease infinite"}}><span style={{fontSize:36}}>{expired ? "⏰" : "🔒"}</span></div></Fi>
+    <Fi delay={200}><h2 style={{fontFamily:pf,fontSize:24,fontWeight:600,color:C.dk,textAlign:"center"}}>{expired ? (user?.name ? `Welcome back, ${user.name}!` : "Welcome back!") : "You've used all "+MAX_FREE_GENS+" free plans"}</h2></Fi>
+    <Fi delay={300}><p style={{fontFamily:dm,fontSize:14,color:C.mt,textAlign:"center",maxWidth:340,lineHeight:1.6,marginTop:8}}>{expired ? "Your 7-day free access has ended. Upgrade to unlock your full 28-day plan and keep your saved progress — or create a new account with a different email." : "Upgrade to unlock unlimited plan generations and a full 28-day program."}</p></Fi>
+    <Fi delay={400}><div style={{background:C.wh,borderRadius:16,padding:18,marginTop:20,width:"100%",maxWidth:340,position:"relative",overflow:"hidden"}}>
+      <div style={{position:"absolute",top:0,right:0,background:C.coral,color:"#fff",fontFamily:dm,fontSize:8,fontWeight:700,padding:"3px 10px",borderBottomLeftRadius:8,letterSpacing:".04em"}}>MOST POPULAR</div>
+      <div style={{marginTop:4}}>
+        {["Unlimited plan regenerations","Full 28-day meal + workout plan","Complete grocery lists","Progress tracking dashboard","Switch between saved plans","Keep your existing data"].map((f,i) => <div key={i} style={{display:"flex",gap:8,alignItems:"center",padding:"5px 0"}}><span style={{color:C.gr,fontSize:13}}>✓</span><span style={{fontFamily:dm,fontSize:13,color:C.mt}}>{f}</span></div>)}
+        <div style={{display:"flex",alignItems:"baseline",gap:6,margin:"14px 0 4px"}}><span style={{fontFamily:dm,fontSize:13,color:C.mtL,textDecoration:"line-through"}}>$29.99 USD</span><span style={{fontFamily:pf,fontSize:30,fontWeight:700,color:C.coral}}>$9.99</span><span style={{fontFamily:dm,fontSize:11,color:C.mtL}}>USD • one-time</span></div>
+        <Btn full onClick={onUpgrade} style={{marginTop:10,animation:"glow 2s ease infinite"}}>Upgrade Now — $9.99 USD</Btn>
+        <p style={{fontFamily:dm,fontSize:10,color:C.mtL,textAlign:"center",marginTop:6}}>🔒 Secure payment via Stripe</p>
+      </div>
     </div></Fi>
-    <Fi delay={500}><button onClick={onHome} style={{background:"none",border:"none",fontFamily:dm,fontSize:13,color:C.coral,cursor:"pointer",marginTop:20,padding:"8px 16px"}}>← Go back to Home</button></Fi>
+    {expired && onSignupDifferent && <Fi delay={500}><div style={{marginTop:20,padding:"12px 16px",background:`${C.peachL}40`,borderRadius:12,maxWidth:340,width:"100%",textAlign:"center"}}>
+      <p style={{fontFamily:dm,fontSize:12,color:C.mt,marginBottom:6}}>Want to try with a different email?</p>
+      <button onClick={onSignupDifferent} style={{background:"none",border:"none",fontFamily:dm,fontSize:13,fontWeight:600,color:C.coral,cursor:"pointer",textDecoration:"underline"}}>Sign up with a different email →</button>
+    </div></Fi>}
+    <Fi delay={600}><button onClick={onHome} style={{background:"none",border:"none",fontFamily:dm,fontSize:13,color:C.mtL,cursor:"pointer",marginTop:14,padding:"8px 16px"}}>← Back to Home</button></Fi>
   </div>;
 }
 
@@ -1010,11 +1017,17 @@ export default function App(){
     setScreen("welcome"); setStep(0); setAnswers({}); setUser(null); setPlan(null); setProgress(0); setGenCount(0); setIsPaid(false); setPlanHistory([]); setExpired(false);
   };
 
+  const signupDifferent = () => {
+    clearSession();
+    setStep(0); setAnswers({}); setUser(null); setPlan(null); setProgress(0); setGenCount(0); setIsPaid(false); setPlanHistory([]); setExpired(false);
+    setScreen("email");
+  };
+
   // If expired, show limit screen
   if (expired && !isPaid && screen === "dashboard") {
     return <div style={{ maxWidth: 480, margin: "0 auto", background: C.bg, minHeight: "100vh" }}>
       <style>{CSS}</style>
-      <LimitScreen genCount={genCount} onUpgrade={onUpgrade} onHome={reset} expired={true} />
+      <LimitScreen genCount={genCount} onUpgrade={onUpgrade} onHome={reset} expired={true} user={user} onSignupDifferent={signupDifferent} />
     </div>;
   }
 
@@ -1026,7 +1039,7 @@ export default function App(){
     {screen === "loading" && <LoadingScreen progress={progress} />}
     {screen === "preview" && <PreviewScreen plan={plan} answers={answers} user={user} isPaid={isPaid} onUnlock={() => setScreen("dashboard")} />}
     {screen === "payment-success" && <PaymentSuccessScreen user={user} onContinue={() => setScreen("dashboard")} />}
-    {screen === "limit" && <LimitScreen genCount={genCount} onUpgrade={onUpgrade} onHome={reset} expired={expired} />}
+    {screen === "limit" && <LimitScreen genCount={genCount} onUpgrade={onUpgrade} onHome={reset} expired={expired} user={user} onSignupDifferent={signupDifferent} />}
     {screen === "dashboard" && <DashScreen plan={plan} answers={answers} user={user} onRegen={onRegen} onReset={reset} isPaid={isPaid} genCount={genCount} onUpgrade={onUpgrade} planHistory={planHistory} switchPlan={switchPlan} planCreatedAt={planCreatedAt} />}
     {showA2HS && screen === "dashboard" && <AddToHomePrompt onDismiss={() => setShowA2HS(false)} />}
   </div>;
