@@ -65,7 +65,7 @@ Rules: 4 meals/day. ${answers.diet} only. ${(answers.focus||[]).includes("Authen
 }
 
 // ─── FALLBACK PLAN ───
-function makeFallback(a) {
+function makeFallback(a, isPaid = false) {
   const diet = a.diet || "Lacto-Ovo Vegetarian";
   const guj = (a.focus||[]).includes("Authentic Gujarati Flavours");
   const veg = diet === "Vegan";
@@ -96,7 +96,20 @@ function makeFallback(a) {
   const key = nv ? "Non-Vegetarian" : pesc ? "Pescatarian" : guj ? "gujarati" : "default";
   const dayNames = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
   const t = templates[key];
-  const meal_plan = dayNames.map((d,i) => ({ day:d, meals:t[i%t.length].map(m=>({...m})) }));
+
+  // Generate 7 days for free, 28 days (4 weeks) for paid
+  const totalDays = isPaid ? 28 : 7;
+  const meal_plan = [];
+  for(let i = 0; i < totalDays; i++) {
+    const weekNum = Math.floor(i / 7) + 1;
+    const dayInWeek = i % 7;
+    meal_plan.push({
+      day: dayNames[dayInWeek],
+      week: weekNum,
+      dayOfPlan: i + 1,
+      meals: t[i % t.length].map(m => ({...m}))
+    });
+  }
 
   const workouts = {
     Beginner: [
@@ -157,7 +170,20 @@ function makeFallback(a) {
     {category:"🥜 Pantry",items:["Pav bhaji masala","Garam masala","Mustard seeds","Jaggery","Eno salt","Ajwain","Pickle"]},
   ] : groceryByDiet[gKey];
 
-  return { meal_plan, workout_plan: workouts[a.fitness] || workouts.Beginner, grocery_list };
+  // Generate workout plan — repeat the 7-day cycle for 28 days if paid
+  const baseWorkouts = workouts[a.fitness] || workouts.Beginner;
+  const workout_plan = [];
+  for(let i = 0; i < totalDays; i++) {
+    const weekNum = Math.floor(i / 7) + 1;
+    const dayInWeek = i % 7;
+    workout_plan.push({
+      ...baseWorkouts[dayInWeek],
+      week: weekNum,
+      dayOfPlan: i + 1
+    });
+  }
+
+  return { meal_plan, workout_plan, grocery_list };
 }
 
 // ─── QUIZ DATA ───
@@ -308,10 +334,31 @@ function EmailScreen({onSubmit,onLogin}){
     if(!email.trim()){setErr("Please enter your email");return}
     if(!/\S+@\S+\.\S+/.test(email)){setErr("Please enter a valid email");return}
     setLoading(true);setErr("");
-    if(mode==="login"){const ex=await sbFind("leads","email",email.trim().toLowerCase());setLoading(false);if(ex){onLogin(ex)}else{setErr("No account found. Try signing up!");setMode("signup")}return}
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if(mode==="login"){
+      const ex=await sbFind("leads","email",normalizedEmail);
+      setLoading(false);
+      if(ex){onLogin(ex)}else{setErr("No account found. Try signing up!");setMode("signup")}
+      return;
+    }
+
+    // Signup mode — first check if email already exists
     if(!name.trim()){setErr("Please enter your name");setLoading(false);return}
-    let lid=null;try{const l=await sbInsert("leads",{name:name.trim(),email:email.trim().toLowerCase()});lid=l?.id||null}catch(e){}
-    setLoading(false);onSubmit({name:name.trim(),email:email.trim().toLowerCase(),leadId:lid});
+
+    const existing = await sbFind("leads", "email", normalizedEmail);
+    if(existing){
+      // Email already registered — auto-login them instead of creating duplicate
+      setLoading(false);
+      onLogin(existing);
+      return;
+    }
+
+    // Email is new — create account
+    let lid=null;
+    try{const l=await sbInsert("leads",{name:name.trim(),email:normalizedEmail});lid=l?.id||null}catch(e){}
+    setLoading(false);
+    onSubmit({name:name.trim(),email:normalizedEmail,leadId:lid});
   };
   return <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column",padding:24}}>
     <div style={{padding:"12px 0"}}><Logo s="sm"/></div>
@@ -439,9 +486,18 @@ function PreviewScreen({plan,answers,user,isPaid,onUnlock}){
 }
 
 function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade,planHistory,switchPlan,planCreatedAt}){
-  const[tab,setTab]=useState("meals");const[day,setDay]=useState(0);const[exp,setExp]=useState(null);const[chk,setChk]=useState({});const[water,setWater]=useState(3);const[mood,setMood]=useState(null);const[btab,setBtab]=useState("home");const[libExp,setLibExp]=useState(null);
+  const[tab,setTab]=useState("meals");const[day,setDay]=useState(0);const[exp,setExp]=useState(null);const[chk,setChk]=useState({});const[water,setWater]=useState(3);const[mood,setMood]=useState(null);const[btab,setBtab]=useState("home");const[libExp,setLibExp]=useState(null);const[week,setWeek]=useState(1);
   if(!plan?.meal_plan) return <div style={{padding:40,textAlign:"center",fontFamily:dm}}>Loading...</div>;
-  const days=plan.meal_plan.map(d=>d.day?.slice(0,3));const meals=plan.meal_plan[day]?.meals||[];const tCal=meals.reduce((s,m)=>s+(m.cal||0),0);const done=meals.filter((_,i)=>chk[`${day}-${i}`]).length;
+  const totalPlanDays = plan.meal_plan.length;
+  const hasWeeks = totalPlanDays > 7;
+  const weekStart = (week - 1) * 7;
+  const weekEnd = Math.min(weekStart + 7, totalPlanDays);
+  const currentWeekMeals = plan.meal_plan.slice(weekStart, weekEnd);
+  const currentWeekWorkouts = (plan.workout_plan || []).slice(weekStart, weekEnd);
+  const days = currentWeekMeals.map(d=>d.day?.slice(0,3));
+  const meals = currentWeekMeals[day]?.meals || [];
+  const tCal = meals.reduce((s,m)=>s+(m.cal||0),0);
+  const done = meals.filter((_,i)=>chk[`${week}-${day}-${i}`]).length;
   const rel=getRelevantEtsy(answers);
   const daysPassed = planCreatedAt ? Math.floor((Date.now()-new Date(planCreatedAt).getTime())/(86400000)) : 0;
 
@@ -536,9 +592,17 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
 
       <div style={{padding:"12px 16px"}}>
         {tab==="meals"&&<>
+          {/* Week selector — only for 28-day plans */}
+          {hasWeeks && <div style={{display:"flex",gap:6,marginBottom:10,padding:"4px",background:C.bgW,borderRadius:12}}>
+            {[1,2,3,4].map(w => <button key={w} onClick={()=>{setWeek(w);setDay(0);setExp(null)}} style={{flex:1,background:week===w?C.wh:"transparent",border:"none",borderRadius:9,padding:"8px 4px",cursor:"pointer",boxShadow:week===w?`0 2px 8px ${C.coral}20`:"none",transition:"all 0.2s ease"}}>
+              <div style={{fontFamily:dm,fontSize:9,fontWeight:600,color:week===w?C.coral:C.mtL,textTransform:"uppercase",letterSpacing:".05em"}}>Week</div>
+              <div style={{fontFamily:pf,fontSize:16,fontWeight:700,color:week===w?C.dk:C.mtL,marginTop:-2}}>{w}</div>
+            </button>)}
+          </div>}
+
           <div style={{display:"flex",gap:4,marginBottom:10,overflowX:"auto"}}>{days.map((d,i)=><button key={i} onClick={()=>{setDay(i);setExp(null)}} style={{flex:"0 0 auto",width:38,height:46,borderRadius:11,border:"none",background:day===i?C.coral:C.wh,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,boxShadow:day===i?`0 3px 10px ${C.coral}28`:"0 1px 4px rgba(0,0,0,.03)"}}><span style={{fontFamily:dm,fontSize:8,fontWeight:600,color:day===i?"#fff":C.mtL}}>{d}</span><span style={{fontFamily:dm,fontSize:11,fontWeight:700,color:day===i?"#fff":C.dk}}>{i+1}</span></button>)}</div>
 
-          {meals.map((m,i)=>{const k=`${day}-${i}`;const isE=exp===k;const isDone=chk[k]; return <div key={k} style={{background:C.wh,borderRadius:13,marginBottom:7,overflow:"hidden",opacity:(isDone&&!isE)?0.5:1,boxShadow:"0 1px 8px rgba(0,0,0,.03)",transition:"opacity .3s"}}>
+          {meals.map((m,i)=>{const k=`${week}-${day}-${i}`;const isE=exp===k;const isDone=chk[k]; return <div key={k} style={{background:C.wh,borderRadius:13,marginBottom:7,overflow:"hidden",opacity:(isDone&&!isE)?0.5:1,boxShadow:"0 1px 8px rgba(0,0,0,.03)",transition:"opacity .3s"}}>
             <div onClick={()=>setExp(isE?null:k)} style={{padding:13,cursor:"pointer",display:"flex",justifyContent:"space-between"}}>
               <div style={{flex:1}}><div style={{fontFamily:dm,fontSize:9,color:C.coral,fontWeight:600,textTransform:"uppercase",letterSpacing:".05em"}}>{m.time}</div><div style={{fontFamily:dm,fontSize:14,fontWeight:600,color:C.dk,marginTop:2}}>{m.emoji} {m.name}</div><div style={{fontFamily:dm,fontSize:11,color:C.mtL,marginTop:2}}>{m.desc}</div>
                 <div style={{display:"flex",gap:5,marginTop:5,flexWrap:"wrap"}}><span style={{fontFamily:dm,fontSize:9,color:C.mt,background:C.bgW,padding:"2px 7px",borderRadius:7}}>{m.cal} cal</span><span style={{fontFamily:dm,fontSize:9,color:C.gr,background:C.grL,padding:"2px 7px",borderRadius:7}}>{m.protein} protein</span><span style={{fontFamily:dm,fontSize:9,color:C.bl,background:`${C.bl}10`,padding:"2px 7px",borderRadius:7}}>⏱ {m.prep_time}</span></div>
@@ -580,12 +644,21 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
           {rel.length>0&&<div style={{marginTop:8}}><h4 style={{fontFamily:pf,fontSize:14,fontWeight:600,color:C.dk,marginBottom:6}}>Go deeper with your goals</h4>{rel.slice(0,2).map(p=><a key={p.id} href={p.url} target="_blank" rel="noopener noreferrer" style={{textDecoration:"none",display:"flex",alignItems:"center",gap:10,background:C.wh,borderRadius:11,padding:10,marginBottom:5,boxShadow:"0 1px 5px rgba(0,0,0,.03)",border:`1px solid ${C.peachL}`}}><span style={{fontSize:22}}>{p.e}</span><div style={{flex:1}}><div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk}}>{p.name}</div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>PDF • <span style={{color:C.coral,fontWeight:600}}>{p.price}</span></div></div><span style={{fontFamily:dm,fontSize:10,color:C.coral,fontWeight:600}}>View →</span></a>)}</div>}
         </>}
 
-        {tab==="workout"&&(plan.workout_plan||[]).map((w,i)=><div key={i} style={{background:C.wh,borderRadius:13,padding:13,boxShadow:"0 1px 8px rgba(0,0,0,.03)",marginBottom:7,border:i===day?`2px solid ${C.coral}`:"2px solid transparent"}}>
+        {tab==="workout"&&<>
+          {/* Week selector for workouts too */}
+          {hasWeeks && <div style={{display:"flex",gap:6,marginBottom:10,padding:"4px",background:C.bgW,borderRadius:12}}>
+            {[1,2,3,4].map(w => <button key={w} onClick={()=>{setWeek(w);setDay(0)}} style={{flex:1,background:week===w?C.wh:"transparent",border:"none",borderRadius:9,padding:"8px 4px",cursor:"pointer",boxShadow:week===w?`0 2px 8px ${C.coral}20`:"none",transition:"all 0.2s ease"}}>
+              <div style={{fontFamily:dm,fontSize:9,fontWeight:600,color:week===w?C.coral:C.mtL,textTransform:"uppercase",letterSpacing:".05em"}}>Week</div>
+              <div style={{fontFamily:pf,fontSize:16,fontWeight:700,color:week===w?C.dk:C.mtL,marginTop:-2}}>{w}</div>
+            </button>)}
+          </div>}
+          {currentWeekWorkouts.map((w,i)=><div key={i} style={{background:C.wh,borderRadius:13,padding:13,boxShadow:"0 1px 8px rgba(0,0,0,.03)",marginBottom:7,border:i===day?`2px solid ${C.coral}`:"2px solid transparent"}}>
           <span style={{fontFamily:dm,fontSize:10,color:C.coral,fontWeight:600}}>{w.day}{i===day?" • Today":""}</span>
           <div style={{fontFamily:dm,fontSize:14,fontWeight:600,color:C.dk,marginTop:1}}>{w.icon} {w.name}</div>
           <span style={{fontFamily:dm,fontSize:11,color:C.mtL}}>{w.duration}</span>
           <div style={{display:"flex",flexDirection:"column",gap:3,marginTop:8}}>{(w.exercises||[]).map((ex,j)=><div key={j} style={{display:"flex",alignItems:"center",gap:7,padding:"4px 9px",background:C.bgW,borderRadius:7}}><span style={{fontFamily:dm,fontSize:10,fontWeight:700,color:C.coral,width:14}}>{j+1}</span><span style={{fontFamily:dm,fontSize:11,fontWeight:600,color:C.dk}}>{typeof ex==="string"?ex:ex.name}</span>{typeof ex!=="string"&&ex.detail&&<span style={{fontFamily:dm,fontSize:10,color:C.mtL,marginLeft:"auto"}}>{ex.detail}</span>}</div>)}</div>
         </div>)}
+        </>}
 
         {tab==="grocery"&&<>{(plan.grocery_list||[]).map((g,i)=><div key={i} style={{marginBottom:12}}><h4 style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk,marginBottom:5}}>{g.category}</h4><div style={{background:C.wh,borderRadius:11,boxShadow:"0 1px 6px rgba(0,0,0,.03)"}}>{(g.items||[]).map((item,j)=><div key={j} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 12px",borderBottom:j<g.items.length-1?`1px solid ${C.bgW}`:"none"}}><div style={{width:16,height:16,borderRadius:4,border:`2px solid ${C.peachL}`,flexShrink:0}}/><span style={{fontFamily:dm,fontSize:12,color:C.dk}}>{item}</span></div>)}</div></div>)}</>}
       </div>
@@ -888,7 +961,7 @@ export default function App(){
 
     if (user?.leadId) sbUpdate("leads", user.leadId, { goal: answers.goal, diet_type: answers.diet, fitness_level: answers.fitness, cooking_time: answers.time, focus_areas: answers.focus || [], generation_count: newCount });
 
-    const result = makeFallback(answers);
+    const result = makeFallback(answers, isPaid);
     const now = new Date().toISOString();
     setPlanCreatedAt(now);
 
