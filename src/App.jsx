@@ -123,7 +123,7 @@ JSON FORMAT (return EXACTLY this structure):
         "anthropic-dangerous-direct-browser-access": "true"
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-5-20250929",
         max_tokens: isPaid ? 16000 : 7000,
         messages: [{ role: "user", content: p }]
       })
