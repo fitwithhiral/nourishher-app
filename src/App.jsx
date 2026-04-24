@@ -249,6 +249,42 @@ function SocialProof(){
   </div>;
 }
 
+// ─── DAILY MOTIVATION CARD ───
+const MOTIVATIONS = [
+  {quote:"You are one workout away from a better mood.",author:"— Daily Reminder",emoji:"💪",grad:[C.coral,C.peach]},
+  {quote:"Small steps every day lead to big transformations.",author:"— Hiral",emoji:"🌱",grad:[C.gr,C.grL]},
+  {quote:"Your body hears everything your mind says. Be kind.",author:"— Daily Reminder",emoji:"💕",grad:[C.rose,C.blush]},
+  {quote:"Progress, not perfection, is the goal.",author:"— Hiral",emoji:"✨",grad:[C.gold,C.peachL]},
+  {quote:"You don't have to be extreme. Just consistent.",author:"— Daily Reminder",emoji:"🔥",grad:[C.coral,C.gold]},
+  {quote:"Nourish your body, honor your journey.",author:"— Hiral",emoji:"🌸",grad:[C.peach,C.rose]},
+  {quote:"The only bad workout is the one you didn't do.",author:"— Daily Reminder",emoji:"⚡",grad:[C.coral,C.coralL]},
+  {quote:"Wellness is a daily practice of self-love.",author:"— Hiral",emoji:"🌿",grad:[C.gr,C.peach]},
+  {quote:"You are stronger than you think, braver than you believe.",author:"— Daily Reminder",emoji:"🦋",grad:[C.rose,C.peach]},
+  {quote:"Every healthy choice is a vote for the woman you're becoming.",author:"— Hiral",emoji:"🌟",grad:[C.gold,C.coral]},
+  {quote:"Rest is productive too. Listen to your body.",author:"— Daily Reminder",emoji:"🧘",grad:[C.bl,C.grL]},
+  {quote:"Hydrate, move, nourish, repeat.",author:"— Hiral",emoji:"💧",grad:[C.bl,C.peach]},
+  {quote:"Discipline is choosing between what you want now and what you want most.",author:"— Daily Reminder",emoji:"🎯",grad:[C.coral,C.rose]},
+  {quote:"Your future self will thank you for what you do today.",author:"— Hiral",emoji:"🌅",grad:[C.gold,C.peach]},
+];
+
+function DailyMotivation(){
+  // Pick motivation based on day of year so it's consistent throughout the day
+  const day = Math.floor(Date.now()/(86400000));
+  const m = MOTIVATIONS[day % MOTIVATIONS.length];
+  return <div style={{background:`linear-gradient(135deg,${m.grad[0]}15,${m.grad[1]}25)`,borderRadius:16,padding:16,border:`1px solid ${m.grad[0]}20`,position:"relative",overflow:"hidden",animation:"fadeScale 0.6s ease"}}>
+    <div style={{position:"absolute",top:-20,right:-20,width:80,height:80,borderRadius:"50%",background:`${m.grad[0]}15`,animation:"float 5s ease infinite"}}/>
+    <div style={{position:"absolute",bottom:-30,left:-15,width:60,height:60,borderRadius:"50%",background:`${m.grad[1]}25`,animation:"float 7s ease infinite",animationDelay:"1s"}}/>
+    <div style={{position:"relative",zIndex:1}}>
+      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+        <span style={{fontSize:20,animation:"float 3s ease infinite"}}>{m.emoji}</span>
+        <span style={{fontFamily:dm,fontSize:9,fontWeight:700,color:m.grad[0],textTransform:"uppercase",letterSpacing:".1em"}}>Daily Motivation</span>
+      </div>
+      <p style={{fontFamily:pf,fontSize:15,fontWeight:500,color:C.dk,lineHeight:1.4,fontStyle:"italic"}}>"{m.quote}"</p>
+      <p style={{fontFamily:dm,fontSize:10,color:C.mt,marginTop:6,fontWeight:500}}>{m.author}</p>
+    </div>
+  </div>;
+}
+
 // ─── SCREENS ───
 function WelcomeScreen({onStart}){
   return <div style={{minHeight:"100vh",background:`linear-gradient(170deg,${C.bg} 0%,${C.bgW} 50%,${C.blush} 100%)`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,position:"relative",overflow:"hidden"}}>
@@ -341,7 +377,7 @@ function LoadingScreen({progress}){
   </div>;
 }
 
-function PreviewScreen({plan,answers,user,onUnlock}){
+function PreviewScreen({plan,answers,user,isPaid,onUnlock}){
   const[exp,setExp]=useState(null);
   if(!plan?.meal_plan) return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><p style={{fontFamily:dm}}>Loading...</p></div>;
   const day1=plan.meal_plan[0];
@@ -349,7 +385,7 @@ function PreviewScreen({plan,answers,user,onUnlock}){
   return <div style={{minHeight:"100vh",background:C.bg,paddingBottom:40}}>
     <div style={{padding:"16px 18px",display:"flex",justifyContent:"center"}}><Logo/></div>
     <div style={{padding:"0 20px"}}>
-      <Fi delay={80}><div style={{textAlign:"center",marginBottom:18}}><span style={{fontSize:40}}>🎉</span><h2 style={{fontFamily:pf,fontSize:24,fontWeight:600,color:C.dk,marginTop:8}}>{user?.name?`${user.name}, your`:"Your"} free 7-day plan is ready!</h2><p style={{fontFamily:dm,fontSize:13,color:C.mt,marginTop:4}}>Here's a preview of Day 1</p></div></Fi>
+      <Fi delay={80}><div style={{textAlign:"center",marginBottom:18}}><span style={{fontSize:40}}>🎉</span><h2 style={{fontFamily:pf,fontSize:24,fontWeight:600,color:C.dk,marginTop:8}}>{user?.name?`${user.name}, your`:"Your"} {isPaid?"28-day premium":"free 7-day"} plan is ready!</h2><p style={{fontFamily:dm,fontSize:13,color:C.mt,marginTop:4}}>Here's a preview of Day 1</p></div></Fi>
 
       {/* Day 1 Preview */}
       <Fi delay={180}><div style={{background:C.wh,borderRadius:16,padding:16,boxShadow:"0 3px 16px rgba(0,0,0,.05)",marginBottom:14}}>
@@ -371,16 +407,16 @@ function PreviewScreen({plan,answers,user,onUnlock}){
         </div>})}
       </div></Fi>
 
-      {/* Unlock free */}
+      {/* Open plan CTA */}
       <Fi delay={350}><div style={{background:`linear-gradient(135deg,${C.grL},${C.bgW})`,borderRadius:14,padding:16,marginBottom:16,textAlign:"center",border:`1px solid ${C.gr}30`}}>
-        <span style={{fontSize:24}}>🎁</span>
-        <h3 style={{fontFamily:pf,fontSize:17,fontWeight:600,color:C.dk,marginTop:4}}>Days 2-7 included FREE</h3>
+        <span style={{fontSize:24}}>{isPaid?"⭐":"🎁"}</span>
+        <h3 style={{fontFamily:pf,fontSize:17,fontWeight:600,color:C.dk,marginTop:4}}>{isPaid?"All 28 days included":"Days 2-7 included FREE"}</h3>
         <p style={{fontFamily:dm,fontSize:12,color:C.mt,marginTop:3}}>Full recipes, workouts, grocery list & tracking</p>
-        <Btn onClick={onUnlock} style={{marginTop:12}}>Open My Full 7-Day Plan →</Btn>
+        <Btn onClick={onUnlock} style={{marginTop:12}}>{isPaid?"Open My 28-Day Plan →":"Open My Full 7-Day Plan →"}</Btn>
       </div></Fi>
 
-      {/* 28-day upsell */}
-      <Fi delay={500}><div style={{background:C.wh,borderRadius:16,padding:18,border:`2px solid ${C.coral}18`,boxShadow:`0 3px 16px ${C.coral}06`,marginBottom:16,position:"relative",overflow:"hidden"}}>
+      {/* 28-day upsell — only for free users */}
+      {!isPaid && <Fi delay={500}><div style={{background:C.wh,borderRadius:16,padding:18,border:`2px solid ${C.coral}18`,boxShadow:`0 3px 16px ${C.coral}06`,marginBottom:16,position:"relative",overflow:"hidden"}}>
         <div style={{position:"absolute",top:0,right:0,background:C.coral,color:"#fff",fontFamily:dm,fontSize:8,fontWeight:700,padding:"3px 10px",borderBottomLeftRadius:8,letterSpacing:".04em"}}>MOST POPULAR</div>
         <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8,marginTop:4}}><span style={{fontSize:18}}>⚡</span><h3 style={{fontFamily:pf,fontSize:16,fontWeight:600,color:C.dk}}>Want the full 28-day plan?</h3></div>
         {["4 weeks of unique meal plans","Progressive workout program","Complete monthly grocery lists","Unlimited plan regenerations","Switch between saved plans"].map((f,i)=><div key={i} style={{display:"flex",gap:6,alignItems:"center",padding:"3px 0"}}><span style={{color:C.gr,fontSize:12}}>✓</span><span style={{fontFamily:dm,fontSize:12,color:C.mt}}>{f}</span></div>)}
@@ -388,7 +424,7 @@ function PreviewScreen({plan,answers,user,onUnlock}){
         <Btn full onClick={()=>window.open(STRIPE_LINK,"_blank")} style={{animation:"glow 2s ease infinite"}}>Unlock 28-Day Plan — $9.99 USD</Btn>
         <div style={{display:"flex",justifyContent:"center",marginTop:8}}><SocialProof/></div>
         <p style={{fontFamily:dm,fontSize:10,color:C.mtL,textAlign:"center",marginTop:4}}>🔒 Secure payment via Stripe</p>
-      </div></Fi>
+      </div></Fi>}
 
       {/* Etsy upsells */}
       {rel.length>0&&<Fi delay={650}><h3 style={{fontFamily:pf,fontSize:15,fontWeight:600,color:C.dk,marginBottom:8}}>Also recommended for you</h3>
@@ -412,23 +448,82 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
   return <div style={{minHeight:"100vh",background:C.bg,paddingBottom:76}}>
     {/* Header */}
     <div style={{background:C.wh,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`1px solid ${C.peachL}`,position:"sticky",top:0,zIndex:10}}>
-      <Logo s="sm"/><div style={{display:"flex",alignItems:"center",gap:6}}>
+      <div onClick={()=>setBtab("home")} style={{cursor:"pointer"}}><Logo s="sm"/></div>
+      <div style={{display:"flex",alignItems:"center",gap:6}}>
         {isPaid
-          ? <span style={{background:`${C.coral}12`,borderRadius:14,padding:"3px 9px",fontFamily:dm,fontSize:9,fontWeight:600,color:C.coral,animation:"fadeScale 0.3s ease"}}>⭐ Premium</span>
+          ? <span style={{background:`${C.coral}12`,borderRadius:14,padding:"3px 9px",fontFamily:dm,fontSize:9,fontWeight:600,color:C.coral,animation:"fadeScale 0.3s ease"}}>⭐ Premium • 28-Day Plan</span>
           : <span style={{background:C.grL,borderRadius:14,padding:"3px 9px",fontFamily:dm,fontSize:9,fontWeight:600,color:C.gr}}>Free • {planCreatedAt ? Math.max(0, FREE_ACCESS_DAYS - Math.floor((new Date()-new Date(planCreatedAt))/(1000*60*60*24))) : FREE_ACCESS_DAYS} days left</span>
         }
-        <div style={{width:28,height:28,borderRadius:"50%",background:`linear-gradient(135deg,${C.coral},${C.peach})`,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontFamily:dm,fontSize:11,fontWeight:700}}>{user?.name?.[0]?.toUpperCase()||"U"}</div>
+        <div onClick={()=>setBtab("home")} style={{width:28,height:28,borderRadius:"50%",background:`linear-gradient(135deg,${C.coral},${C.peach})`,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontFamily:dm,fontSize:11,fontWeight:700,cursor:"pointer",boxShadow:btab==="home"?`0 0 0 2px ${C.wh},0 0 0 4px ${C.coral}`:"none",transition:"all 0.2s ease"}}>{user?.name?.[0]?.toUpperCase()||"U"}</div>
       </div>
     </div>
 
-    {btab==="home"&&<>
-      <div style={{padding:"12px 16px 2px"}}><h2 style={{fontFamily:pf,fontSize:20,fontWeight:600,color:C.dk,animation:"slideUp 0.4s ease"}}>Hey {user?.name||"there"}! 👋</h2><p style={{fontFamily:dm,fontSize:12,color:C.mt,marginTop:1}}>Your {answers.diet} plan for <b>{answers.goal}</b></p></div>
+    {btab==="home"&&<div style={{padding:"14px 16px"}}>
+      {/* Greeting */}
+      <div style={{marginBottom:14}}>
+        <h2 style={{fontFamily:pf,fontSize:22,fontWeight:600,color:C.dk,animation:"slideUp 0.4s ease"}}>Hey {user?.name||"there"}! 👋</h2>
+        <p style={{fontFamily:dm,fontSize:13,color:C.mt,marginTop:2}}>{new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</p>
+      </div>
+
+      {/* Daily Motivation Card */}
+      <div style={{marginBottom:14,animation:"slideUp 0.5s ease"}}><DailyMotivation/></div>
+
+      {/* User Info Card */}
+      <div style={{background:C.wh,borderRadius:16,padding:14,boxShadow:"0 1px 10px rgba(0,0,0,.04)",marginBottom:12,animation:"slideUp 0.6s ease"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+          <div style={{width:44,height:44,borderRadius:"50%",background:`linear-gradient(135deg,${C.coral},${C.peach})`,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontFamily:pf,fontSize:20,fontWeight:700}}>{user?.name?.[0]?.toUpperCase()||"U"}</div>
+          <div style={{flex:1}}>
+            <div style={{fontFamily:dm,fontSize:15,fontWeight:600,color:C.dk}}>{user?.name||"User"}</div>
+            <div style={{fontFamily:dm,fontSize:11,color:C.mtL}}>{user?.email||""}</div>
+          </div>
+          {isPaid && <span style={{background:`linear-gradient(135deg,${C.coral},${C.peach})`,color:"#fff",fontFamily:dm,fontSize:9,fontWeight:700,padding:"4px 10px",borderRadius:12,letterSpacing:".04em"}}>⭐ PREMIUM</span>}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,paddingTop:10,borderTop:`1px solid ${C.bgW}`}}>
+          <div><div style={{fontFamily:dm,fontSize:9,color:C.mtL,textTransform:"uppercase",letterSpacing:".04em"}}>Goal</div><div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk,marginTop:2}}>{answers.goal||"—"}</div></div>
+          <div><div style={{fontFamily:dm,fontSize:9,color:C.mtL,textTransform:"uppercase",letterSpacing:".04em"}}>Diet</div><div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk,marginTop:2}}>{answers.diet||"—"}</div></div>
+          <div><div style={{fontFamily:dm,fontSize:9,color:C.mtL,textTransform:"uppercase",letterSpacing:".04em"}}>Fitness</div><div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk,marginTop:2}}>{answers.fitness||"—"}</div></div>
+          <div><div style={{fontFamily:dm,fontSize:9,color:C.mtL,textTransform:"uppercase",letterSpacing:".04em"}}>Plan</div><div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:isPaid?C.coral:C.gr,marginTop:2}}>{isPaid?"28-Day Premium":`${FREE_ACCESS_DAYS}-Day Free`}</div></div>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+        <button onClick={()=>setBtab("plan")} style={{background:C.wh,border:`1px solid ${C.peachL}`,borderRadius:12,padding:"12px 10px",cursor:"pointer",textAlign:"left",transition:"all 0.2s ease"}}>
+          <span style={{fontSize:20}}>🥗</span>
+          <div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk,marginTop:4}}>View Plan</div>
+          <div style={{fontFamily:dm,fontSize:9,color:C.mtL}}>Meals, workouts, grocery</div>
+        </button>
+        <button onClick={onRegen} style={{background:C.wh,border:`1px solid ${C.peachL}`,borderRadius:12,padding:"12px 10px",cursor:"pointer",textAlign:"left",transition:"all 0.2s ease"}}>
+          <span style={{fontSize:20}}>🔄</span>
+          <div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk,marginTop:4}}>New Plan</div>
+          <div style={{fontFamily:dm,fontSize:9,color:C.mtL}}>{isPaid?"Unlimited":`${genCount}/${MAX_FREE_GENS} used`}</div>
+        </button>
+      </div>
+
+      {/* Upgrade CTA for free users */}
+      {!isPaid && <div style={{background:`linear-gradient(135deg,${C.coral}06,${C.peach}10)`,borderRadius:14,padding:14,border:`1px solid ${C.coral}18`,marginBottom:12,position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",top:0,right:0,background:C.coral,color:"#fff",fontFamily:dm,fontSize:8,fontWeight:700,padding:"3px 10px",borderBottomLeftRadius:8,letterSpacing:".04em"}}>MOST POPULAR</div>
+        <div style={{marginTop:6}}>
+          <div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>⚡ Unlock Full 28-Day Plan</div>
+          <div style={{fontFamily:dm,fontSize:11,color:C.mtL,marginTop:2}}>Unlimited regens • Full month of meals • Complete grocery lists</div>
+          <div style={{display:"flex",alignItems:"baseline",gap:6,margin:"8px 0"}}>
+            <span style={{fontFamily:pf,fontSize:24,fontWeight:700,color:C.coral}}>$9.99</span>
+            <span style={{fontFamily:dm,fontSize:11,color:C.mtL,textDecoration:"line-through"}}>$29.99</span>
+            <span style={{fontFamily:dm,fontSize:10,color:C.mtL}}>USD • one-time</span>
+          </div>
+          <button onClick={onUpgrade} style={{width:"100%",background:`linear-gradient(135deg,${C.coral},${C.coralL})`,color:"#fff",border:"none",borderRadius:10,padding:"10px",fontFamily:dm,fontSize:13,fontWeight:600,cursor:"pointer",animation:"glow 2s ease infinite"}}>Upgrade Now →</button>
+        </div>
+      </div>}
+
+      {/* Countdown for free users */}
+      {!isPaid && <div style={{marginBottom:10}}><CountdownTimer planCreatedAt={planCreatedAt}/></div>}
+    </div>}
+
+    {btab==="plan"&&<>
+      <div style={{padding:"12px 16px 2px"}}><h2 style={{fontFamily:pf,fontSize:20,fontWeight:600,color:C.dk,animation:"slideUp 0.4s ease"}}>Your Plan</h2><p style={{fontFamily:dm,fontSize:12,color:C.mt,marginTop:1}}>Your {answers.diet} plan for <b>{answers.goal}</b></p></div>
 
       {/* Stats with animation */}
       <div style={{display:"flex",gap:7,padding:"9px 16px",overflowX:"auto"}}>{[{l:"Calories",v:tCal,u:"kcal",c:C.coral},{l:"Meals",v:`${done}/4`,c:C.gr},{l:"Water",v:`${water}/8`,u:"cups",c:C.bl}].map((s,i)=><div key={i} style={{flex:"0 0 auto",minWidth:105,background:C.wh,borderRadius:12,padding:"11px 13px",boxShadow:"0 1px 8px rgba(0,0,0,.03)",animation:`slideUp 0.4s ease`,animationDelay:`${i*0.1}s`,animationFillMode:"both"}}><div style={{fontFamily:dm,fontSize:9,color:C.mtL,textTransform:"uppercase",letterSpacing:".05em"}}>{s.l}</div><span style={{fontFamily:pf,fontSize:22,fontWeight:700,color:s.c}}>{s.v}</span>{s.u&&<span style={{fontFamily:dm,fontSize:10,color:C.mtL,marginLeft:2}}>{s.u}</span>}</div>)}</div>
-
-      {/* Countdown Timer — only for free users */}
-      {!isPaid && <div style={{padding:"4px 16px 6px"}}><CountdownTimer planCreatedAt={planCreatedAt}/></div>}
 
       {/* Day-based nudge card — only for free users */}
       {!isPaid && <div style={{padding:"0 16px"}}><NudgeCard daysPassed={daysPassed} onUpgrade={onUpgrade}/></div>}
@@ -613,7 +708,7 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
 
     {/* Bottom nav */}
     <div style={{position:"fixed",bottom:0,left:0,right:0,background:C.wh,borderTop:`1px solid ${C.peachL}`,display:"flex",justifyContent:"space-around",padding:"7px 0 16px",zIndex:20}}>
-      {[["home","🏠","Home"],["progress","📊","Progress"],["library","📚","Library"],["settings","⚙️","Settings"]].map(([id,icon,lbl])=><button key={id} onClick={()=>setBtab(id)} style={{background:"none",border:"none",display:"flex",flexDirection:"column",alignItems:"center",gap:1,cursor:"pointer",opacity:btab===id?1:.65}}><span style={{fontSize:17}}>{icon}</span><span style={{fontFamily:dm,fontSize:8,color:btab===id?C.coral:C.mt,fontWeight:btab===id?700:500}}>{lbl}</span></button>)}
+      {[["home","🏠","Home"],["plan","🥗","Plan"],["progress","📊","Progress"],["library","📚","Library"],["settings","⚙️","Settings"]].map(([id,icon,lbl])=><button key={id} onClick={()=>setBtab(id)} style={{background:"none",border:"none",display:"flex",flexDirection:"column",alignItems:"center",gap:1,cursor:"pointer",opacity:btab===id?1:.65}}><span style={{fontSize:17}}>{icon}</span><span style={{fontFamily:dm,fontSize:8,color:btab===id?C.coral:C.mt,fontWeight:btab===id?700:500}}>{lbl}</span></button>)}
     </div>
   </div>;
 }
@@ -856,7 +951,7 @@ export default function App(){
     {screen === "email" && <EmailScreen onSubmit={onEmail} onLogin={onLogin} />}
     {screen === "quiz" && <QuizScreen step={step} answers={answers} onAnswer={onAnswer} onBack={onBack} onNext={onNext} />}
     {screen === "loading" && <LoadingScreen progress={progress} />}
-    {screen === "preview" && <PreviewScreen plan={plan} answers={answers} user={user} onUnlock={() => setScreen("dashboard")} />}
+    {screen === "preview" && <PreviewScreen plan={plan} answers={answers} user={user} isPaid={isPaid} onUnlock={() => setScreen("dashboard")} />}
     {screen === "payment-success" && <PaymentSuccessScreen user={user} onContinue={() => setScreen("dashboard")} />}
     {screen === "limit" && <LimitScreen genCount={genCount} onUpgrade={onUpgrade} onHome={reset} expired={expired} />}
     {screen === "dashboard" && <DashScreen plan={plan} answers={answers} user={user} onRegen={onRegen} onReset={reset} isPaid={isPaid} genCount={genCount} onUpgrade={onUpgrade} planHistory={planHistory} switchPlan={switchPlan} planCreatedAt={planCreatedAt} />}
