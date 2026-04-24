@@ -45,23 +45,110 @@ async function sbFind(t, col, val) {
 }
 
 // ─── AI PLAN GENERATION ───
-async function aiGenerate(answers) {
-  const p = `You are a certified fitness coach. Create a 7-day ${answers.diet} meal + workout plan.
-Goal: ${answers.goal} | Fitness: ${answers.fitness} | Cook time: ${answers.time} | Focus: ${(answers.focus||[]).join(", ")}
-Return ONLY JSON: {"meal_plan":[{"day":"Monday","meals":[{"time":"Breakfast","name":"Name","emoji":"🥣","cal":380,"protein":"24g","carbs":"42g","fat":"14g","prep_time":"15 min","desc":"Brief desc","ingredients":["item1","item2"],"instructions":["Step 1","Step 2"]}]}],"workout_plan":[{"day":"Monday","name":"Name","icon":"🦵","duration":"30 min","exercises":[{"name":"Exercise","detail":"3×12"}]}],"grocery_list":[{"category":"🥬 Produce","items":["item1","item2"]}]}
-Rules: 4 meals/day. ${answers.diet} only. ${(answers.focus||[]).includes("Authentic Gujarati Flavours")?"Include Gujarati dishes (dhokla,thepla,undhiyu,dal dhokli,handvo).":""} High protein. 3-6 ingredients, 3-5 steps per recipe. ${answers.fitness} workouts with 1-2 rest days.`;
+async function aiGenerate(answers, isPaid = false) {
+  const apiKey = import.meta.env.VITE_ANTHROPIC_KEY;
+  if (!apiKey) { console.warn("No API key — using fallback"); return null; }
+
+  const totalDays = isPaid ? 28 : 7;
+  const planLabel = isPaid ? "28-day (4 weeks)" : "7-day";
+  const gujarati = (answers.focus||[]).includes("Authentic Gujarati Flavours");
+
+  // Goal-specific workout guidance
+  const workoutGuidance = {
+    "Lose Weight": "Mix of HIIT, cardio intervals, full-body strength circuits, and active recovery. Focus on calorie burn and metabolic conditioning. 5 workout days + 2 rest.",
+    "Build Strength": "Progressive strength training with compound lifts (squats, deadlifts, rows, presses). Split by muscle groups. 4-5 workout days + 2-3 rest.",
+    "Balance Hormones": "Low-impact strength, yoga, walking, Pilates. Avoid overtraining. Gentle cardio only. 3-4 workout days + 3-4 rest/yoga days.",
+    "Improve Digestion": "Gentle yoga, walking, core work, breathwork, light strength. Low intensity. 3-4 workout days + 3-4 active recovery days."
+  };
+
+  const p = `You are Hiral, a certified NASM fitness coach specializing in women's wellness. Create a genuinely UNIQUE and personalized ${planLabel} meal + workout plan with VARIETY across all days — NO repetition, every day different recipes.
+
+USER PROFILE:
+- Goal: ${answers.goal}
+- Diet: ${answers.diet}
+- Fitness Level: ${answers.fitness}
+- Cooking Time: ${answers.time}
+- Focus Areas: ${(answers.focus||[]).join(", ") || "general wellness"}
+
+WORKOUT STYLE FOR THIS GOAL: ${workoutGuidance[answers.goal] || "Balanced mix of strength, cardio, and recovery."}
+
+${gujarati ? "SPECIAL: Include authentic Gujarati dishes like dhokla, thepla, undhiyu, dal dhokli, handvo, khandvi, fafda, khaman, bhakri, shrikhand throughout the week." : ""}
+
+STRICT RULES:
+- Return ONLY valid JSON, no markdown, no code fences, no commentary
+- ${answers.diet} foods ONLY (never violate this)
+- ${totalDays} days total
+- 4 meals per day: Breakfast, Lunch, Snack, Dinner
+- Each recipe must have 3-6 ingredients and 3-5 instructions
+- Every single day must have DIFFERENT meals from other days (no repeats across ${totalDays} days)
+- ${answers.time === "15-20 min" ? "Keep ALL recipes under 20 minutes prep" : answers.time === "30-40 min" ? "Recipes 20-40 min prep" : "Recipes can be 30-60 min prep"}
+- High protein (25-40g per main meal)
+- Include calories, protein(g), carbs(g), fat(g) for EACH meal
+- Workouts: ${answers.fitness} level intensity, include 1-2 rest/active recovery days per week
+- Use appropriate emoji for each meal (🥣🥗🍳🥘🍛🐟🌯 etc) and workout (🦵💪⚡🧘🍑🏃😴 etc)
+
+JSON FORMAT (return EXACTLY this structure):
+{
+  "meal_plan": [
+    {"day":"Monday","week":1,"dayOfPlan":1,"meals":[
+      {"time":"Breakfast","name":"Recipe Name","emoji":"🥣","cal":380,"protein":"24g","carbs":"42g","fat":"14g","prep_time":"15 min","desc":"Short appetizing description","ingredients":["item 1","item 2","item 3"],"instructions":["Step 1","Step 2","Step 3"]},
+      {"time":"Lunch","name":"...","emoji":"🥗",...},
+      {"time":"Snack","name":"...","emoji":"🍎",...},
+      {"time":"Dinner","name":"...","emoji":"🍛",...}
+    ]},
+    ... (${totalDays} days total)
+  ],
+  "workout_plan": [
+    {"day":"Monday","week":1,"dayOfPlan":1,"name":"Workout Name","icon":"🦵","duration":"30 min","exercises":[
+      {"name":"Exercise Name","detail":"3×12"},
+      ...
+    ]},
+    ... (${totalDays} days total)
+  ],
+  "grocery_list": [
+    {"category":"🥬 Fresh Produce","items":["item 1","item 2",...]},
+    {"category":"🍗 Proteins","items":[...]},
+    {"category":"🌾 Grains","items":[...]},
+    {"category":"🥜 Pantry","items":[...]}
+  ]
+}`;
+
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 7000, messages: [{ role: "user", content: p }] })
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: isPaid ? 16000 : 7000,
+        messages: [{ role: "user", content: p }]
+      })
     });
+
+    if (!r.ok) {
+      const errTxt = await r.text();
+      console.warn("AI API error:", r.status, errTxt);
+      return null;
+    }
+
     const d = await r.json();
     const txt = d.content?.map(function(b) { return b.text || ""; }).join("") || "";
-    const parsed = JSON.parse(txt.replace(/```json|```/g, "").trim());
-    if (parsed && parsed.meal_plan && parsed.meal_plan.length >= 7) return parsed;
+    const cleaned = txt.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+
+    if (parsed && parsed.meal_plan && parsed.meal_plan.length >= totalDays) {
+      return parsed;
+    }
+    console.warn("AI plan incomplete:", parsed?.meal_plan?.length);
     return null;
-  } catch(e) { console.warn("AI gen failed:", e.message); return null; }
+  } catch(e) {
+    console.warn("AI gen failed:", e.message);
+    return null;
+  }
 }
 
 // ─── FALLBACK PLAN ───
@@ -407,7 +494,7 @@ function QuizScreen({step,answers,onAnswer,onBack,onNext}){
 }
 
 function LoadingScreen({progress}){
-  const msgs=["Analyzing your goals...","Crafting personalized recipes...","Building your workout plan...","Creating grocery list...","Finalizing your plan..."];
+  const msgs=["Analyzing your goals & preferences...","AI is crafting personalized recipes...","Building your custom workout program...","Generating your grocery list...","Finalizing your personalized plan..."];
   const s=Math.min(Math.floor(progress/20),4);
   return <div style={{minHeight:"100vh",background:`linear-gradient(170deg,${C.bg},${C.bgW})`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32}}>
     <div style={{width:110,height:110,borderRadius:"50%",background:`conic-gradient(${C.coral} ${progress*3.6}deg,${C.peachL} 0deg)`,display:"flex",alignItems:"center",justifyContent:"center",animation:"pulse 2s ease-in-out infinite",marginBottom:28}}>
@@ -968,15 +1055,42 @@ export default function App(){
 
     if (user?.leadId) sbUpdate("leads", user.leadId, { goal: answers.goal, diet_type: answers.diet, fitness_level: answers.fitness, cooking_time: answers.time, focus_areas: answers.focus || [], generation_count: newCount });
 
-    const result = makeFallback(answers, isPaid);
     const now = new Date().toISOString();
     setPlanCreatedAt(now);
 
+    // Start progress animation — slowly climb to 90% while AI works
     let p = 0;
     const iv = setInterval(() => {
-      p += 2; setProgress(Math.min(p, 100));
-      if (p >= 100) {
-        clearInterval(iv);
+      // Slow down as we approach 90%
+      const increment = p < 50 ? 1.2 : p < 80 ? 0.6 : 0.3;
+      p += increment;
+      setProgress(Math.min(p, 90));
+      if (p >= 90) clearInterval(iv);
+    }, 100);
+
+    // Try AI first — this is now the PRIMARY path
+    let result = null;
+    try {
+      result = await aiGenerate(answers, isPaid);
+    } catch(e) {
+      console.warn("AI error:", e);
+    }
+
+    // Fallback only if AI fails
+    if (!result || !result.meal_plan || result.meal_plan.length === 0) {
+      console.log("Using fallback plan");
+      result = makeFallback(answers, isPaid);
+    } else {
+      console.log("Using AI-generated plan with", result.meal_plan.length, "days");
+    }
+
+    // Finish progress animation
+    clearInterval(iv);
+    let fp = p;
+    const finishIv = setInterval(() => {
+      fp += 3; setProgress(Math.min(fp, 100));
+      if (fp >= 100) {
+        clearInterval(finishIv);
         setTimeout(() => {
           setPlan(result);
           setPlanHistory(prev => [...prev, { plan: result, answers: { ...answers }, createdAt: now, label: "Plan " + (prev.length + 1) + ": " + answers.goal + " (" + answers.diet + ")" }]);
@@ -984,14 +1098,7 @@ export default function App(){
           setScreen("preview");
         }, 500);
       }
-    }, 50);
-
-    aiGenerate(answers).then(function(aiResult) {
-      if (aiResult && aiResult.meal_plan && aiResult.meal_plan.length > 0) {
-        setPlan(aiResult);
-        if (user?.leadId) sbInsert("plans", { lead_id: user.leadId, meal_plan: aiResult.meal_plan, workout_plan: aiResult.workout_plan, grocery_list: aiResult.grocery_list });
-      }
-    }).catch(function() {});
+    }, 40);
   };
 
   const onBack = () => { if (step > 0) setStep(s => s - 1); else setScreen("email"); };
