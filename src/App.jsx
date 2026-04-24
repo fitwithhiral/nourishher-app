@@ -46,12 +46,15 @@ async function sbFind(t, col, val) {
 
 // ─── AI PLAN GENERATION ───
 async function aiGenerate(answers, isPaid = false) {
+  console.log("🤖 Starting AI generation...");
   const apiKey = import.meta.env.VITE_ANTHROPIC_KEY;
-  if (!apiKey) { console.warn("No API key — using fallback"); return null; }
+  console.log("🔑 API key present?", apiKey ? "YES (length: " + apiKey.length + ", starts with: " + apiKey.substring(0,10) + "...)" : "NO");
+  if (!apiKey) { console.warn("❌ No API key found in environment — using fallback"); return null; }
 
   const totalDays = isPaid ? 28 : 7;
   const planLabel = isPaid ? "28-day (4 weeks)" : "7-day";
   const gujarati = (answers.focus||[]).includes("Authentic Gujarati Flavours");
+  console.log("📋 Generating " + planLabel + " plan for:", answers);
 
   // Goal-specific workout guidance
   const workoutGuidance = {
@@ -114,6 +117,7 @@ JSON FORMAT (return EXACTLY this structure):
 }`;
 
   try {
+    console.log("📡 Calling Anthropic API...");
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -128,25 +132,38 @@ JSON FORMAT (return EXACTLY this structure):
         messages: [{ role: "user", content: p }]
       })
     });
+    console.log("📥 API responded with status:", r.status);
 
     if (!r.ok) {
       const errTxt = await r.text();
-      console.warn("AI API error:", r.status, errTxt);
+      console.warn("❌ AI API error:", r.status, errTxt);
       return null;
     }
 
     const d = await r.json();
+    console.log("✅ Got response, content length:", d.content?.length);
     const txt = d.content?.map(function(b) { return b.text || ""; }).join("") || "";
+    console.log("📝 Raw AI text (first 200 chars):", txt.substring(0,200));
     const cleaned = txt.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(cleaned);
 
+    let parsed;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch(parseErr) {
+      console.warn("❌ JSON parse failed:", parseErr.message);
+      console.log("Full AI text was:", txt);
+      return null;
+    }
+
+    console.log("📊 Parsed plan has", parsed?.meal_plan?.length, "days (wanted", totalDays + ")");
     if (parsed && parsed.meal_plan && parsed.meal_plan.length >= totalDays) {
+      console.log("🎉 AI plan SUCCESS!");
       return parsed;
     }
-    console.warn("AI plan incomplete:", parsed?.meal_plan?.length);
+    console.warn("⚠️ AI plan has fewer days than requested");
     return null;
   } catch(e) {
-    console.warn("AI gen failed:", e.message);
+    console.warn("❌ AI gen failed with exception:", e.message, e);
     return null;
   }
 }
