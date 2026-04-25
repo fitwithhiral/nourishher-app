@@ -524,20 +524,43 @@ function QuizScreen({step,answers,onAnswer,onBack,onNext}){
   </div>;
 }
 
-function LoadingScreen({progress}){
-  const msgs=["Analyzing your goals & preferences...","AI is crafting personalized recipes...","Building your custom workout program...","Generating your grocery list...","Finalizing your personalized plan..."];
+function LoadingScreen({progress, isPaid}){
+  const msgs = isPaid
+    ? ["Analyzing your goals & preferences...","AI is crafting 28 unique recipes...","Building 4 weeks of progressive workouts...","Generating your complete grocery list...","Finalizing your full month plan..."]
+    : ["Analyzing your goals & preferences...","AI is crafting personalized recipes...","Building your custom workout program...","Generating your grocery list...","Finalizing your personalized plan..."];
   const s=Math.min(Math.floor(progress/20),4);
-  return <div style={{minHeight:"100vh",background:`linear-gradient(170deg,${C.bg},${C.bgW})`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32}}>
-    <div style={{width:110,height:110,borderRadius:"50%",background:`conic-gradient(${C.coral} ${progress*3.6}deg,${C.peachL} 0deg)`,display:"flex",alignItems:"center",justifyContent:"center",animation:"pulse 2s ease-in-out infinite",marginBottom:28}}>
+  const timeEstimate = isPaid ? "1-2 minutes" : "30-60 seconds";
+  return <div style={{minHeight:"100vh",background:`linear-gradient(170deg,${C.bg},${C.bgW})`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,paddingTop:32}}>
+
+    {/* Progress circle */}
+    <div style={{width:110,height:110,borderRadius:"50%",background:`conic-gradient(${C.coral} ${progress*3.6}deg,${C.peachL} 0deg)`,display:"flex",alignItems:"center",justifyContent:"center",animation:"pulse 2s ease-in-out infinite",marginBottom:20}}>
       <div style={{width:90,height:90,borderRadius:"50%",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontFamily:pf,fontSize:24,fontWeight:700,color:C.coral}}>{Math.round(progress)}%</span></div>
     </div>
-    <h2 style={{fontFamily:pf,fontSize:21,fontWeight:600,color:C.dk}}>Creating Your Plan</h2>
-    <p style={{fontFamily:dm,fontSize:12,color:C.mtL,marginTop:3}}>Personalizing based on your preferences...</p>
-    <div style={{display:"flex",flexDirection:"column",gap:9,marginTop:22,width:"100%",maxWidth:250}}>
+
+    <h2 style={{fontFamily:pf,fontSize:22,fontWeight:600,color:C.dk,textAlign:"center"}}>Creating Your {isPaid ? "28-Day" : "7-Day"} Plan</h2>
+    <p style={{fontFamily:dm,fontSize:12,color:C.mtL,marginTop:3,textAlign:"center"}}>Personalizing based on your preferences</p>
+
+    {/* Time estimate banner — prominent for paid users */}
+    <div style={{marginTop:18,background:`linear-gradient(135deg,${C.peachL}50,${C.blush}80)`,borderRadius:14,padding:"12px 18px",display:"flex",alignItems:"center",gap:10,maxWidth:340,width:"100%",border:`1px solid ${C.coral}25`,animation:"fadeScale 0.5s ease"}}>
+      <span style={{fontSize:22}}>⏱️</span>
+      <div style={{flex:1}}>
+        <div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>This takes {timeEstimate}</div>
+        <div style={{fontFamily:dm,fontSize:11,color:C.mt,marginTop:1,lineHeight:1.4}}>{isPaid ? "Crafting 28 unique days takes time. Please don't close or refresh — your plan is being made just for you." : "Please don't close or refresh — your plan is on the way!"}</div>
+      </div>
+    </div>
+
+    {/* Step list */}
+    <div style={{display:"flex",flexDirection:"column",gap:9,marginTop:22,width:"100%",maxWidth:280}}>
       {msgs.map((m,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:9,opacity:i<=s?1:.25,transition:"all .5s"}}>
-        <div style={{width:22,height:22,borderRadius:"50%",background:i<s?C.gr:i===s?C.coral:C.peachL,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{color:"#fff",fontSize:10}}>{i<s?"✓":i+1}</span></div>
+        <div style={{width:22,height:22,borderRadius:"50%",background:i<s?C.gr:i===s?C.coral:C.peachL,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,animation:i===s?"pulse 1.5s ease infinite":"none"}}><span style={{color:"#fff",fontSize:10,fontWeight:700}}>{i<s?"✓":i+1}</span></div>
         <span style={{fontFamily:dm,fontSize:12,color:i<=s?C.dk:C.mtL}}>{m}</span>
       </div>)}
+    </div>
+
+    {/* Reassurance footer */}
+    <div style={{marginTop:24,display:"flex",alignItems:"center",gap:6,padding:"6px 14px",background:`${C.gr}10`,borderRadius:20}}>
+      <span style={{fontSize:12}}>✨</span>
+      <span style={{fontFamily:dm,fontSize:10,color:C.gr,fontWeight:600}}>Powered by AI • Made just for you</span>
     </div>
   </div>;
 }
@@ -1090,10 +1113,12 @@ export default function App(){
     setPlanCreatedAt(now);
 
     // Start progress animation — slowly climb to 90% while AI works
+    // For 28-day plans (paid), progress moves slower to match the longer wait time
     let p = 0;
     const iv = setInterval(() => {
-      // Slow down as we approach 90%
-      const increment = p < 50 ? 1.2 : p < 80 ? 0.6 : 0.3;
+      // Slow down as we approach 90%; even slower for paid (28-day) plans
+      const speedMultiplier = isPaid ? 0.5 : 1;
+      const increment = (p < 50 ? 1.2 : p < 80 ? 0.6 : 0.3) * speedMultiplier;
       p += increment;
       setProgress(Math.min(p, 90));
       if (p >= 90) clearInterval(iv);
@@ -1174,7 +1199,7 @@ export default function App(){
     {screen === "welcome" && <WelcomeScreen onStart={() => setScreen("email")} />}
     {screen === "email" && <EmailScreen onSubmit={onEmail} onLogin={onLogin} />}
     {screen === "quiz" && <QuizScreen step={step} answers={answers} onAnswer={onAnswer} onBack={onBack} onNext={onNext} />}
-    {screen === "loading" && <LoadingScreen progress={progress} />}
+    {screen === "loading" && <LoadingScreen progress={progress} isPaid={isPaid} />}
     {screen === "preview" && <PreviewScreen plan={plan} answers={answers} user={user} isPaid={isPaid} onUnlock={() => setScreen("dashboard")} />}
     {screen === "payment-success" && <PaymentSuccessScreen user={user} onContinue={() => setScreen("dashboard")} />}
     {screen === "limit" && <LimitScreen genCount={genCount} onUpgrade={onUpgrade} onHome={reset} expired={expired} user={user} onSignupDifferent={signupDifferent} />}
