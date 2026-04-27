@@ -39,9 +39,16 @@ async function sbUpdate(t, id, d) {
 }
 async function sbFind(t, col, val) {
   try {
-    const r = await fetch(`${SB_URL}/rest/v1/${t}?${col}=eq.${encodeURIComponent(val)}&limit=1`, { headers:sbHeaders });
+    const r = await fetch(`${SB_URL}/rest/v1/${t}?${col}=eq.${encodeURIComponent(val)}&order=created_at.desc&limit=1`, { headers:sbHeaders });
     const j = await r.json(); return j?.[0] || null;
   } catch { return null; }
+}
+
+async function sbFindAll(t, col, val) {
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/${t}?${col}=eq.${encodeURIComponent(val)}&order=created_at.desc`, { headers:sbHeaders });
+    return await r.json() || [];
+  } catch { return []; }
 }
 
 // ─── MAILCHIMP (via Vercel serverless function) ───
@@ -627,7 +634,7 @@ function PreviewScreen({plan,answers,user,isPaid,onUnlock}){
 }
 
 function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade,planHistory,switchPlan,planCreatedAt}){
-  const[tab,setTab]=useState("meals");const[day,setDay]=useState(0);const[exp,setExp]=useState(null);const[chk,setChk]=useState({});const[water,setWater]=useState(3);const[mood,setMood]=useState(null);const[btab,setBtab]=useState("home");const[libExp,setLibExp]=useState(null);const[week,setWeek]=useState(1);
+  const[tab,setTab]=useState("meals");const[day,setDay]=useState(0);const[exp,setExp]=useState(null);const[chk,setChk]=useState({});const[water,setWater]=useState(3);const[mood,setMood]=useState(null);const[btab,setBtab]=useState("home");const[libExp,setLibExp]=useState(null);const[week,setWeek]=useState(1);const[planSelOpen,setPlanSelOpen]=useState(false);const[currentPlanIdx,setCurrentPlanIdx]=useState(planHistory.length>0?planHistory.length-1:0);
   if(!plan?.meal_plan) return <div style={{padding:40,textAlign:"center",fontFamily:dm}}>Loading...</div>;
   const totalPlanDays = plan.meal_plan.length;
   const hasWeeks = totalPlanDays > 7;
@@ -717,7 +724,36 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
     </div>}
 
     {btab==="plan"&&<>
-      <div style={{padding:"12px 16px 2px"}}><h2 style={{fontFamily:pf,fontSize:20,fontWeight:600,color:C.dk,animation:"slideUp 0.4s ease"}}>Your Plan</h2><p style={{fontFamily:dm,fontSize:12,color:C.mt,marginTop:1}}>Your {answers.diet} plan for <b>{answers.goal}</b></p></div>
+      <div style={{padding:"12px 16px 2px"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
+          <div style={{flex:1,minWidth:0}}>
+            <h2 style={{fontFamily:pf,fontSize:20,fontWeight:600,color:C.dk,animation:"slideUp 0.4s ease"}}>Your Plan</h2>
+            <p style={{fontFamily:dm,fontSize:12,color:C.mt,marginTop:1}}>Your {answers.diet} plan for <b>{answers.goal}</b></p>
+          </div>
+          {planHistory.length > 1 && <button onClick={()=>setPlanSelOpen(!planSelOpen)} style={{background:C.wh,border:`1px solid ${C.peachL}`,borderRadius:10,padding:"7px 11px",cursor:"pointer",display:"flex",alignItems:"center",gap:4,fontFamily:dm,fontSize:11,fontWeight:600,color:C.dk,whiteSpace:"nowrap"}}>
+            📋 {planHistory.length} Saved
+            <span style={{fontSize:9,marginLeft:2,transform:planSelOpen?"rotate(180deg)":"none",transition:"transform 0.2s"}}>▾</span>
+          </button>}
+        </div>
+
+        {/* Saved Plans Dropdown */}
+        {planSelOpen && planHistory.length > 1 && <div style={{background:C.wh,borderRadius:12,padding:8,marginTop:10,boxShadow:"0 4px 20px rgba(0,0,0,.08)",animation:"slideUp 0.3s ease",border:`1px solid ${C.peachL}`}}>
+          <div style={{fontFamily:dm,fontSize:9,fontWeight:700,color:C.mtL,textTransform:"uppercase",letterSpacing:".05em",padding:"4px 8px"}}>Switch Plan</div>
+          {planHistory.map((h,i)=>{
+            const isActive = i === currentPlanIdx;
+            return <button key={i} onClick={()=>{switchPlan(i);setCurrentPlanIdx(i);setPlanSelOpen(false);setDay(0);setWeek(1);setExp(null)}} style={{width:"100%",background:isActive?`${C.coral}10`:"transparent",border:"none",borderRadius:8,padding:"9px 10px",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:8,marginTop:i>0?2:0}}>
+              <div style={{width:30,height:30,borderRadius:8,background:isActive?C.coral:C.peachL,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                <span style={{fontSize:14}}>{i === planHistory.length - 1 ? "⭐" : "📋"}</span>
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk}}>{i === planHistory.length - 1 ? "Most Recent" : `Plan ${i+1}`}</div>
+                <div style={{fontFamily:dm,fontSize:10,color:C.mtL,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{h.label || `${h.answers?.goal || "Plan"} (${h.answers?.diet || ""})`}</div>
+              </div>
+              {isActive && <span style={{fontSize:11,color:C.coral,fontWeight:700}}>✓</span>}
+            </button>;
+          })}
+        </div>}
+      </div>
 
       {/* Stats with animation */}
       <div style={{display:"flex",gap:7,padding:"9px 16px",overflowX:"auto"}}>{[{l:"Calories",v:tCal,u:"kcal",c:C.coral},{l:"Meals",v:`${done}/4`,c:C.gr},{l:"Water",v:`${water}/8`,u:"cups",c:C.bl}].map((s,i)=><div key={i} style={{flex:"0 0 auto",minWidth:105,background:C.wh,borderRadius:12,padding:"11px 13px",boxShadow:"0 1px 8px rgba(0,0,0,.03)",animation:`slideUp 0.4s ease`,animationDelay:`${i*0.1}s`,animationFillMode:"both"}}><div style={{fontFamily:dm,fontSize:9,color:C.mtL,textTransform:"uppercase",letterSpacing:".05em"}}>{s.l}</div><span style={{fontFamily:pf,fontSize:22,fontWeight:700,color:s.c}}>{s.v}</span>{s.u&&<span style={{fontFamily:dm,fontSize:10,color:C.mtL,marginLeft:2}}>{s.u}</span>}</div>)}</div>
@@ -1024,11 +1060,20 @@ export default function App(){
             setExpired(false);
             setGenCount(lead.generation_count || 0);
             setAnswers({ goal: lead.goal, diet: lead.diet_type, fitness: lead.fitness_level, time: lead.cooking_time, focus: lead.focus_areas });
-            // Load their plan
-            const ep = await sbFind("plans", "lead_id", lead.id);
-            if (ep) {
+            // Load ALL their plans (most recent first)
+            const allPlans = await sbFindAll("plans", "lead_id", lead.id);
+            if (allPlans.length > 0) {
+              const ep = allPlans[0]; // Most recent
               setPlan({ meal_plan: ep.meal_plan, workout_plan: ep.workout_plan, grocery_list: ep.grocery_list });
               setPlanCreatedAt(ep.created_at);
+              // Build history from all plans (oldest first for numbering)
+              const history = [...allPlans].reverse().map((p, i) => ({
+                plan: { meal_plan: p.meal_plan, workout_plan: p.workout_plan, grocery_list: p.grocery_list },
+                answers: { goal: lead.goal, diet: lead.diet_type, fitness: lead.fitness_level, time: lead.cooking_time, focus: lead.focus_areas },
+                createdAt: p.created_at,
+                label: "Plan " + (i + 1) + ": " + (lead.goal || "Plan") + " (" + (lead.diet_type || "") + ")"
+              }));
+              setPlanHistory(history);
             }
             saveSession({ email: lead.email, name: lead.name, leadId: lead.id, isPaid: true });
             setScreen("payment-success");
@@ -1043,10 +1088,19 @@ export default function App(){
             setGenCount(lead.generation_count || 0);
             setIsPaid(lead.has_paid || false);
             setAnswers({ goal: lead.goal, diet: lead.diet_type, fitness: lead.fitness_level, time: lead.cooking_time, focus: lead.focus_areas });
-            const ep = await sbFind("plans", "lead_id", lead.id);
-            if (ep) {
+            const allPlans = await sbFindAll("plans", "lead_id", lead.id);
+            if (allPlans.length > 0) {
+              const ep = allPlans[0]; // Most recent
               setPlan({ meal_plan: ep.meal_plan, workout_plan: ep.workout_plan, grocery_list: ep.grocery_list });
               setPlanCreatedAt(ep.created_at);
+              // Build history from all saved plans
+              const history = [...allPlans].reverse().map((p, i) => ({
+                plan: { meal_plan: p.meal_plan, workout_plan: p.workout_plan, grocery_list: p.grocery_list },
+                answers: { goal: lead.goal, diet: lead.diet_type, fitness: lead.fitness_level, time: lead.cooking_time, focus: lead.focus_areas },
+                createdAt: p.created_at,
+                label: "Plan " + (i + 1) + ": " + (lead.goal || "Plan") + " (" + (lead.diet_type || "") + ")"
+              }));
+              setPlanHistory(history);
               // Check expiry for free users
               if (!lead.has_paid && ep.created_at) {
                 const daysPassed = Math.floor((new Date() - new Date(ep.created_at)) / (86400000));
@@ -1083,10 +1137,18 @@ export default function App(){
     setGenCount(lead.generation_count || 0);
     setIsPaid(lead.has_paid || false);
     saveSession({ email: lead.email, name: lead.name, leadId: lead.id, isPaid: lead.has_paid || false });
-    const ep = await sbFind("plans", "lead_id", lead.id);
-    if (ep) {
+    const allPlans = await sbFindAll("plans", "lead_id", lead.id);
+    if (allPlans.length > 0) {
+      const ep = allPlans[0]; // Most recent
       setPlan({ meal_plan: ep.meal_plan, workout_plan: ep.workout_plan, grocery_list: ep.grocery_list });
       setPlanCreatedAt(ep.created_at);
+      const history = [...allPlans].reverse().map((p, i) => ({
+        plan: { meal_plan: p.meal_plan, workout_plan: p.workout_plan, grocery_list: p.grocery_list },
+        answers: { goal: lead.goal, diet: lead.diet_type, fitness: lead.fitness_level, time: lead.cooking_time, focus: lead.focus_areas },
+        createdAt: p.created_at,
+        label: "Plan " + (i + 1) + ": " + (lead.goal || "Plan") + " (" + (lead.diet_type || "") + ")"
+      }));
+      setPlanHistory(history);
       if (!lead.has_paid && ep.created_at) {
         const daysPassed = Math.floor((new Date() - new Date(ep.created_at)) / (86400000));
         if (daysPassed >= FREE_ACCESS_DAYS) { setExpired(true); setScreen("limit"); return; }
