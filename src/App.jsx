@@ -175,7 +175,7 @@ The grocery_list must reflect ALL ingredients used across ALL ${totalDays} days 
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: weekOnly ? 8000 : (isPaid ? 16000 : 8000),
+        max_tokens: weekOnly ? 20000 : (isPaid ? 60000 : 20000),
         messages: [{ role: "user", content: p }]
       })
     });
