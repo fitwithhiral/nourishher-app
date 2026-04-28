@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 // ─── CONFIG ───
 const SB_URL = "https://fimsmaafruzbpoibepua.supabase.co";
@@ -88,7 +88,8 @@ async function aiGenerate(answers, isPaid = false, weekOnly = null) {
   const planLabel = weekOnly ? `Week ${weekOnly} (7-day)` : (isPaid ? "28-day (4 weeks)" : "7-day");
   const startDayOfPlan = weekOnly ? ((weekOnly - 1) * 7 + 1) : 1;
   const weekNum = weekOnly || 1;
-  const gujarati = (answers.focus||[]).includes("Authentic Gujarati Flavours");
+  const cuisines = Array.isArray(answers.cuisine) ? answers.cuisine : (answers.cuisine ? [answers.cuisine] : []);
+  const cuisineStr = cuisines.length > 0 ? cuisines.join(", ") : "varied";
   console.log("📋 Generating " + planLabel + " plan for:", answers);
 
   // Goal-specific workout guidance
@@ -115,13 +116,14 @@ async function aiGenerate(answers, isPaid = false, weekOnly = null) {
 
 USER: ${answers.goal} goal, ${dietStr}, ${answers.fitness} fitness, ${answers.time} cook time, focus: ${(answers.focus||[]).join(", ") || "general"}
 WORKOUT: ${workoutGuidance[answers.goal] || "Balanced mix of strength, cardio, recovery."}
-${gujarati ? "INCLUDE Gujarati dishes: dhokla, thepla, undhiyu, dal dhokli, handvo, khandvi, fafda, khaman.\n" : ""}
+CUISINE PREFERENCES: ${cuisineStr}. ${cuisines.length > 0 ? `Mix dishes from these cuisines across the days. Examples — Gujarati: dhokla, thepla, undhiyu, dal dhokli, handvo. Italian: pasta primavera, risotto, minestrone. Mexican: bean bowls, tacos, fajitas. Chinese: stir-fry, fried rice, dumplings. Mediterranean: hummus bowls, Greek salad, falafel. Indian South: dosa, idli, sambar, uttapam. Indian North: dal makhani, paneer butter masala, biryani. Thai/Vietnamese: pho, pad thai, larb. American: protein bowls, burgers, BBQ. Use authentic spices and ingredients for each cuisine.` : "Use varied global cuisines."}
+
 DIET RULES: ${dietRules}
 
 OTHER RULES:
 - ${totalDays} unique days (NO meal repeats across days)
 - 4 meals/day: Breakfast, Lunch, Snack, Dinner
-- 3-5 ingredients PER RECIPE, each WITH QUANTITY (e.g. "200g paneer", "1 cup spinach", "2 tbsp olive oil")
+- 3-5 ingredients PER RECIPE — EVERY ingredient MUST start with a quantity. Examples: "200g paneer cubes", "1 cup chopped spinach", "2 tbsp olive oil", "1/2 onion diced", "3 medium tomatoes". NEVER write just "paneer" or "spinach" — ALWAYS include amount with unit (g/cup/tbsp/tsp/piece/medium/large)
 - 3 brief instructions per recipe (keep concise)
 - High protein (25-40g per main meal)
 - Calorie totals must match the ingredients listed
@@ -155,8 +157,12 @@ The grocery_list must reflect ALL ingredients used across ALL ${totalDays} days 
 
   try {
     console.log("📡 Calling Anthropic API...");
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60-second timeout
+
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
+      signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
         "x-api-key": apiKey,
@@ -164,11 +170,12 @@ The grocery_list must reflect ALL ingredients used across ALL ${totalDays} days 
         "anthropic-dangerous-direct-browser-access": "true"
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5-20250929",
-        max_tokens: weekOnly ? 16000 : (isPaid ? 32000 : 16000),
+        model: "claude-haiku-4-5",
+        max_tokens: weekOnly ? 8000 : (isPaid ? 16000 : 8000),
         messages: [{ role: "user", content: p }]
       })
     });
+    clearTimeout(timeoutId);
     console.log("📥 API responded with status:", r.status);
 
     if (!r.ok) {
@@ -203,7 +210,11 @@ The grocery_list must reflect ALL ingredients used across ALL ${totalDays} days 
     console.warn("⚠️ AI plan has fewer days than requested");
     return null;
   } catch(e) {
-    console.warn("❌ AI gen failed with exception:", e.message, e);
+    if (e.name === "AbortError") {
+      console.warn("⏱️ AI request timed out after 60 seconds — falling back");
+    } else {
+      console.warn("❌ AI gen failed with exception:", e.message, e);
+    }
     return null;
   }
 }
@@ -211,7 +222,8 @@ The grocery_list must reflect ALL ingredients used across ALL ${totalDays} days 
 // ─── FALLBACK PLAN ───
 function makeFallback(a, isPaid = false) {
   const diet = a.diet || "Lacto-Ovo Vegetarian";
-  const guj = (a.focus||[]).includes("Authentic Gujarati Flavours");
+  const cuisineArr = Array.isArray(a.cuisine) ? a.cuisine : (a.cuisine ? [a.cuisine] : []);
+  const guj = cuisineArr.includes("Gujarati") || (a.focus||[]).includes("Authentic Gujarati Flavours");
   const veg = diet === "Vegan";
   const nv = diet === "Non-Vegetarian";
   const pesc = diet === "Pescatarian";
@@ -336,12 +348,33 @@ function makeFallback(a, isPaid = false) {
 function dietToString(d) {
   if (!d) return "";
   if (Array.isArray(d)) return d.join(" + ");
+  // Handle stringified arrays from older DB entries: '["Vegan"]' or "['vegan']"
+  if (typeof d === "string" && (d.startsWith("[") || d.startsWith("'"))) {
+    try {
+      const parsed = JSON.parse(d.replace(/'/g, '"'));
+      if (Array.isArray(parsed)) return parsed.join(" + ");
+    } catch(e) {}
+    // Fallback: strip brackets and quotes
+    return d.replace(/[\[\]'"]/g, "").split(",").map(s => s.trim()).filter(Boolean).join(" + ");
+  }
   return d;
 }
 function dietToArray(d) {
   if (!d) return [];
   if (Array.isArray(d)) return d;
-  return [d]; // legacy single-string diets
+  // Handle stringified arrays
+  if (typeof d === "string" && (d.startsWith("[") || d.startsWith("'"))) {
+    try {
+      const parsed = JSON.parse(d.replace(/'/g, '"'));
+      if (Array.isArray(parsed)) return parsed;
+    } catch(e) {}
+    return d.replace(/[\[\]'"]/g, "").split(",").map(s => s.trim()).filter(Boolean);
+  }
+  // Handle "Lacto-Vegetarian + Vegan" format
+  if (typeof d === "string" && d.includes(" + ")) {
+    return d.split(" + ").map(s => s.trim()).filter(Boolean);
+  }
+  return [d];
 }
 function dietHas(d, type) {
   return dietToArray(d).includes(type);
@@ -365,6 +398,18 @@ function mergeGroceryLists(a, b) {
 // ─── QUIZ DATA ───
 const QUIZ = [
   {id:"goal",q:"What's your primary wellness goal?",sub:"We'll personalize everything around this",opts:[{l:"Lose Weight",e:"🔥",d:"Sustainable fat loss"},{l:"Build Strength",e:"💪",d:"Tone & define"},{l:"Balance Hormones",e:"🌸",d:"Cycle & cortisol support"},{l:"Improve Digestion",e:"🌿",d:"Gut health reset"}]},
+  {id:"cuisine",q:"What cuisines do you love?",sub:"Pick up to 3 — we'll mix them into your meals",multi:true,maxSelect:3,opts:[
+    {l:"Indian (North)",e:"🍛",d:"Punjabi, Mughlai"},
+    {l:"Indian (South)",e:"🌶️",d:"Dosa, idli, sambar"},
+    {l:"Gujarati",e:"🪔",d:"Dhokla, thepla, undhiyu"},
+    {l:"Italian",e:"🍝",d:"Pasta, risotto"},
+    {l:"Mexican",e:"🌮",d:"Tacos, bowls"},
+    {l:"Chinese / Asian",e:"🥢",d:"Stir fry, noodles"},
+    {l:"Mediterranean",e:"🥙",d:"Greek, Lebanese"},
+    {l:"American",e:"🍔",d:"Comfort classics"},
+    {l:"Thai / Vietnamese",e:"🍜",d:"Pho, curry"},
+    {l:"Mixed Variety",e:"🌍",d:"Surprise me!"}
+  ]},
   {id:"diet",q:"What's your dietary preference?",sub:"Select up to 3 — we'll respect them all",multi:true,maxSelect:3,opts:[
     {l:"Lacto-Vegetarian",e:"🥛",d:"Dairy, no eggs/meat",incompatible:["Vegan","Pescatarian","Non-Vegetarian","Pollotarian"]},
     {l:"Lacto-Ovo Vegetarian",e:"🧀",d:"Dairy & eggs, no meat",incompatible:["Vegan","Pescatarian","Non-Vegetarian","Pollotarian","Jain"]},
@@ -377,7 +422,7 @@ const QUIZ = [
   ]},
   {id:"fitness",q:"What's your current fitness level?",sub:"No judgment — just finding your starting point",opts:[{l:"Beginner",e:"🌱",d:"Just getting started"},{l:"Intermediate",e:"⚡",d:"Somewhat active"},{l:"Advanced",e:"🏋️",d:"Regular training"}]},
   {id:"time",q:"How much time can you cook each day?",sub:"We'll match recipes to your schedule",opts:[{l:"15-20 min",e:"⏱️",d:"Quick & easy"},{l:"30-40 min",e:"🍳",d:"Moderate prep"},{l:"45-60 min",e:"👩‍🍳",d:"Love cooking!"}]},
-  {id:"focus",q:"Any special focus areas?",sub:"Select all that apply",multi:true,opts:[{l:"High Protein",e:"💪"},{l:"Anti-Inflammatory",e:"🌿"},{l:"Low Carb",e:"🥗"},{l:"Iron-Rich",e:"🫘"},{l:"Gut-Friendly",e:"🦠"},{l:"Hormone Support",e:"🌸"},{l:"Authentic Gujarati Flavours",e:"🇮🇳"}]},
+  {id:"focus",q:"Any special focus areas?",sub:"Select all that apply",multi:true,opts:[{l:"High Protein",e:"💪"},{l:"Anti-Inflammatory",e:"🌿"},{l:"Low Carb",e:"🥗"},{l:"Iron-Rich",e:"🫘"},{l:"Gut-Friendly",e:"🦠"},{l:"Hormone Support",e:"🌸"}]},
 ];
 
 const ETSY = [
@@ -645,7 +690,7 @@ function LoadingScreen({progress, isPaid}){
     ? ["Analyzing your goals & preferences...","AI is crafting 28 unique recipes...","Building 4 weeks of progressive workouts...","Generating your complete grocery list...","Finalizing your full month plan..."]
     : ["Analyzing your goals & preferences...","AI is crafting personalized recipes...","Building your custom workout program...","Generating your grocery list...","Finalizing your personalized plan..."];
   const s=Math.min(Math.floor(progress/20),4);
-  const timeEstimate = isPaid ? "1-2 minutes" : "30-60 seconds";
+  const timeEstimate = "1-3 minutes";
   return <div style={{minHeight:"100vh",background:`linear-gradient(170deg,${C.bg},${C.bgW})`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,paddingTop:32}}>
 
     {/* Progress circle */}
@@ -839,9 +884,9 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
                   </div>
                 </div>
               </button>
-              <button onClick={()=>deletePlan(i)} style={{background:"none",border:"none",padding:"6px 8px",cursor:"pointer",borderRadius:6,opacity:0.5,transition:"opacity 0.2s"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.5}>
+              {!isMostRecent && <button onClick={()=>deletePlan(i)} style={{background:"none",border:"none",padding:"6px 8px",cursor:"pointer",borderRadius:6,opacity:0.5,transition:"opacity 0.2s"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.5}>
                 <span style={{fontSize:14}}>🗑️</span>
-              </button>
+              </button>}
             </div>;
           })}
         </div>
@@ -927,7 +972,7 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
           {isCurrentWeekLocked && <div style={{background:`linear-gradient(135deg,${C.peachL}40,${C.blush}60)`,borderRadius:16,padding:24,marginTop:16,textAlign:"center",border:`1px solid ${C.coral}25`,animation:"fadeScale 0.4s ease"}}>
             <span style={{fontSize:36}}>🔒</span>
             <h3 style={{fontFamily:pf,fontSize:18,fontWeight:600,color:C.dk,marginTop:8}}>Week {week} is locked</h3>
-            <p style={{fontFamily:dm,fontSize:13,color:C.mt,marginTop:4,lineHeight:1.5,maxWidth:280,marginLeft:"auto",marginRight:"auto"}}>Generate Week {week} on-demand. Takes about 30 seconds and includes 7 unique meals + workouts.</p>
+            <p style={{fontFamily:dm,fontSize:13,color:C.mt,marginTop:4,lineHeight:1.5,maxWidth:280,marginLeft:"auto",marginRight:"auto"}}>Generate Week {week} on-demand. Takes about 1-2 minutes and includes 7 unique meals + workouts.</p>
             <Btn onClick={()=>generateWeek(week)} style={{marginTop:14,opacity:weekGenerating?0.6:1,cursor:weekGenerating?"not-allowed":"pointer"}} disabled={!!weekGenerating}>
               {weekGenerating === week ? "Generating..." : weekGenerating ? "Please wait..." : `Generate Week ${week} →`}
             </Btn>
@@ -1285,6 +1330,7 @@ function AddToHomePrompt({onDismiss}) {
 // ─── MAIN APP ───
 export default function App(){
   const[screen,setScreen]=useState("welcome");const[step,setStep]=useState(0);const[answers,setAnswers]=useState({});const[user,setUser]=useState(null);const[plan,setPlan]=useState(null);const[progress,setProgress]=useState(0);
+  const insertedTimestamps = useRef(new Set()); // Prevents duplicate plan inserts from React StrictMode/re-renders
   const[genCount,setGenCount]=useState(0);const[isPaid,setIsPaid]=useState(false);const[planHistory,setPlanHistory]=useState([]);const[planCreatedAt,setPlanCreatedAt]=useState(null);const[expired,setExpired]=useState(false);
   const[showA2HS,setShowA2HS]=useState(true);
 
@@ -1417,7 +1463,7 @@ export default function App(){
     const newCount = genCount + 1;
     setGenCount(newCount);
 
-    if (user?.leadId) sbUpdate("leads", user.leadId, { goal: answers.goal, diet_type: answers.diet, fitness_level: answers.fitness, cooking_time: answers.time, focus_areas: answers.focus || [], generation_count: newCount });
+    if (user?.leadId) sbUpdate("leads", user.leadId, { goal: answers.goal, diet_type: dietToString(answers.diet), fitness_level: answers.fitness, cooking_time: answers.time, focus_areas: answers.focus || [], generation_count: newCount });
 
     const now = new Date().toISOString();
     setPlanCreatedAt(now);
@@ -1462,8 +1508,16 @@ export default function App(){
         clearInterval(finishIv);
         setTimeout(() => {
           setPlan(result);
-          setPlanHistory(prev => [...prev, { plan: result, answers: { ...answers }, createdAt: now, label: "Plan " + (prev.length + 1) + ": " + answers.goal + " (" + dietToString(answers.diet) + ")" }]);
-          if (user?.leadId) sbInsert("plans", { lead_id: user.leadId, meal_plan: result.meal_plan, workout_plan: result.workout_plan, grocery_list: result.grocery_list });
+          // Use timestamp-based dedup: only push if not already in history
+          setPlanHistory(prev => {
+            if (prev.some(p => p.createdAt === now)) return prev;
+            return [...prev, { plan: result, answers: { ...answers }, createdAt: now, label: "Plan " + (prev.length + 1) + ": " + answers.goal + " (" + dietToString(answers.diet) + ")" }];
+          });
+          // Insert to DB only if not already inserted (track via ref)
+          if (user?.leadId && !insertedTimestamps.current.has(now)) {
+            insertedTimestamps.current.add(now);
+            sbInsert("plans", { lead_id: user.leadId, meal_plan: result.meal_plan, workout_plan: result.workout_plan, grocery_list: result.grocery_list });
+          }
           setScreen("preview");
         }, 500);
       }
@@ -1531,6 +1585,13 @@ export default function App(){
   const deletePlan = async (planIdx) => {
     const h = planHistory[planIdx];
     if (!h || !user?.leadId) return;
+
+    // Block deletion of most recent (last in array = newest)
+    if (planIdx === planHistory.length - 1) {
+      alert("Your most recent plan can't be deleted. Generate a new plan first to make this one older, then delete it.");
+      return;
+    }
+
     if (!confirm("Delete this saved plan? This can't be undone.")) return;
 
     try {
@@ -1538,19 +1599,14 @@ export default function App(){
       const allPlans = await sbFindAll("plans", "lead_id", user.leadId);
       const dbPlan = allPlans.find(p => p.created_at === h.createdAt);
       if (dbPlan) {
-        await fetch(`${SB_URL}/rest/v1/plans?id=eq.${dbPlan.id}`, { method:"DELETE", headers:sbHeaders });
+        const r = await fetch(`${SB_URL}/rest/v1/plans?id=eq.${dbPlan.id}`, { method:"DELETE", headers:sbHeaders });
+        if (!r.ok) {
+          console.warn("DB delete returned:", r.status);
+        }
       }
-      // Update UI
+      // Update UI — just remove from history, current plan stays unchanged (since deleted is older)
       const newHistory = planHistory.filter((_, i) => i !== planIdx);
       setPlanHistory(newHistory);
-      // If we deleted the current plan, switch to most recent
-      if (newHistory.length > 0) {
-        const mostRecent = newHistory[newHistory.length - 1];
-        setPlan(mostRecent.plan);
-        setAnswers(mostRecent.answers);
-      } else {
-        setPlan(null);
-      }
     } catch(e) {
       console.warn("Delete failed:", e);
       alert("Couldn't delete the plan. Try again.");
