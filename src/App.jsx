@@ -75,14 +75,19 @@ async function mailchimpSubscribe(email, name) {
 }
 
 // ─── AI PLAN GENERATION ───
-async function aiGenerate(answers, isPaid = false) {
-  console.log("🤖 Starting AI generation...");
+// weekOnly: if specified (1,2,3,4), generates ONLY that week (faster, cheaper, more reliable)
+// otherwise: generates 7 days (free) or 28 days (paid full plan)
+async function aiGenerate(answers, isPaid = false, weekOnly = null) {
+  console.log("🤖 Starting AI generation...", weekOnly ? `(Week ${weekOnly} only)` : "(full plan)");
   const apiKey = import.meta.env.VITE_ANTHROPIC_KEY;
   console.log("🔑 API key present?", apiKey ? "YES (length: " + apiKey.length + ", starts with: " + apiKey.substring(0,10) + "...)" : "NO");
   if (!apiKey) { console.warn("❌ No API key found in environment — using fallback"); return null; }
 
-  const totalDays = isPaid ? 28 : 7;
-  const planLabel = isPaid ? "28-day (4 weeks)" : "7-day";
+  // Determine total days for this generation request
+  const totalDays = weekOnly ? 7 : (isPaid ? 28 : 7);
+  const planLabel = weekOnly ? `Week ${weekOnly} (7-day)` : (isPaid ? "28-day (4 weeks)" : "7-day");
+  const startDayOfPlan = weekOnly ? ((weekOnly - 1) * 7 + 1) : 1;
+  const weekNum = weekOnly || 1;
   const gujarati = (answers.focus||[]).includes("Authentic Gujarati Flavours");
   console.log("📋 Generating " + planLabel + " plan for:", answers);
 
@@ -94,31 +99,47 @@ async function aiGenerate(answers, isPaid = false) {
     "Improve Digestion": "Gentle yoga, walking, core work, breathwork, light strength. Low intensity. 3-4 workout days + 3-4 active recovery days."
   };
 
+  const dietArr = dietToArray(answers.diet);
+  const dietStr = dietArr.length > 0 ? dietArr.join(" AND ") : "balanced";
+  const dietRules = dietArr.length > 0
+    ? `Diet MUST respect ALL of: ${dietArr.join(" AND ")}. Use the strictest interpretation. Examples:
+       - Vegan = no animal products at all
+       - Vegetarian variants = no meat or fish
+       - Eggetarian = vegetarian + eggs only (no meat/fish)
+       - Jain = strict veg, no root vegetables (onion/garlic/potato/carrot/ginger), no eggs
+       - Pescatarian = vegetarian + fish/seafood only
+       - Pollotarian = chicken only, no red meat, no fish`
+    : "Balanced diet with variety";
+
   const p = `Create a personalized ${planLabel} meal + workout plan. Return ONLY valid JSON, no markdown.
 
-USER: ${answers.goal} goal, ${answers.diet}, ${answers.fitness} fitness, ${answers.time} cook time, focus: ${(answers.focus||[]).join(", ") || "general"}
+USER: ${answers.goal} goal, ${dietStr}, ${answers.fitness} fitness, ${answers.time} cook time, focus: ${(answers.focus||[]).join(", ") || "general"}
 WORKOUT: ${workoutGuidance[answers.goal] || "Balanced mix of strength, cardio, recovery."}
 ${gujarati ? "INCLUDE Gujarati dishes: dhokla, thepla, undhiyu, dal dhokli, handvo, khandvi, fafda, khaman.\n" : ""}
-RULES:
+DIET RULES: ${dietRules}
+
+OTHER RULES:
 - ${totalDays} unique days (NO meal repeats across days)
 - 4 meals/day: Breakfast, Lunch, Snack, Dinner
-- ${answers.diet} foods ONLY
-- 3-4 ingredients, 3 brief instructions per recipe (keep concise!)
-- High protein (25-40g per meal)
-- 1-2 rest/recovery days per week for workouts
+- 3-5 ingredients PER RECIPE, each WITH QUANTITY (e.g. "200g paneer", "1 cup spinach", "2 tbsp olive oil")
+- 3 brief instructions per recipe (keep concise)
+- High protein (25-40g per main meal)
+- Calorie totals must match the ingredients listed
+- Workouts: ${answers.fitness} level, 1-2 rest/recovery days per week
+- EVERY exercise MUST include a "modification" field with a safer/easier alternative for joint issues, beginners, or heavier users (e.g. "Do this seated in a chair", "Use wall support", "Skip the jump and step instead", "Reduce range of motion")
 
 JSON FORMAT:
 {
   "meal_plan": [
-    {"day":"Monday","week":1,"dayOfPlan":1,"meals":[
-      {"time":"Breakfast","name":"X","emoji":"🥣","cal":380,"protein":"24g","carbs":"42g","fat":"14g","prep_time":"15 min","desc":"brief","ingredients":["a","b","c"],"instructions":["step1","step2","step3"]},
+    {"day":"Monday","week":${weekNum},"dayOfPlan":${startDayOfPlan},"meals":[
+      {"time":"Breakfast","name":"X","emoji":"🥣","cal":380,"protein":"24g","carbs":"42g","fat":"14g","prep_time":"15 min","desc":"brief","ingredients":["200g item","1 cup item","2 tbsp item"],"instructions":["step1","step2","step3"]},
       {"time":"Lunch",...},
       {"time":"Snack",...},
       {"time":"Dinner",...}
     ]}
   ],
   "workout_plan": [
-    {"day":"Monday","week":1,"dayOfPlan":1,"name":"X","icon":"🦵","duration":"30 min","exercises":[{"name":"X","detail":"3×12"}]}
+    {"day":"Monday","week":${weekNum},"dayOfPlan":${startDayOfPlan},"name":"X","icon":"🦵","duration":"30 min","exercises":[{"name":"X","detail":"3×12","modification":"Easier version: do this seated/wall-supported instead. Brief description."}]}
   ],
   "grocery_list": [
     {"category":"🥬 Produce","items":["a","b"]},
@@ -128,7 +149,9 @@ JSON FORMAT:
   ]
 }
 
-Keep descriptions brief. Keep instructions to 3 short steps. Every day of the ${totalDays}-day plan must have unique recipes.`;
+${weekOnly ? `Generate exactly 7 days for Week ${weekOnly} only. Days numbered ${startDayOfPlan}-${startDayOfPlan + 6}, all with week:${weekNum}.` : ""}
+Keep descriptions brief. Keep instructions to 3 short steps. Every day of the ${totalDays}-day plan must have unique recipes.
+The grocery_list must reflect ALL ingredients used across ALL ${totalDays} days in this plan.`;
 
   try {
     console.log("📡 Calling Anthropic API...");
@@ -142,7 +165,7 @@ Keep descriptions brief. Keep instructions to 3 short steps. Every day of the ${
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-5-20250929",
-        max_tokens: isPaid ? 32000 : 16000,
+        max_tokens: weekOnly ? 16000 : (isPaid ? 32000 : 16000),
         messages: [{ role: "user", content: p }]
       })
     });
@@ -234,31 +257,31 @@ function makeFallback(a, isPaid = false) {
 
   const workouts = {
     Beginner: [
-      {day:"Monday",name:"Lower Body Basics",icon:"🦵",duration:"25 min",exercises:[{name:"Bodyweight Squats",detail:"3×12"},{name:"Lunges",detail:"3×10 each"},{name:"Glute Bridges",detail:"3×15"},{name:"Calf Raises",detail:"3×15"}]},
-      {day:"Tuesday",name:"Upper Body + Core",icon:"💪",duration:"25 min",exercises:[{name:"Wall Push-ups",detail:"3×10"},{name:"Dumbbell Rows",detail:"3×10"},{name:"Shoulder Press",detail:"3×10"},{name:"Plank Hold",detail:"3×30s"}]},
-      {day:"Wednesday",name:"Active Recovery",icon:"🧘",duration:"20 min",exercises:[{name:"Gentle Yoga Flow",detail:"15 min"},{name:"Foam Rolling",detail:"5 min"}]},
-      {day:"Thursday",name:"Full Body Circuit",icon:"⚡",duration:"25 min",exercises:[{name:"Jumping Jacks",detail:"3×20"},{name:"Squats",detail:"3×12"},{name:"Push-ups",detail:"3×8"},{name:"Mountain Climbers",detail:"3×15"}]},
-      {day:"Friday",name:"Glutes & Legs",icon:"🍑",duration:"25 min",exercises:[{name:"Sumo Squats",detail:"3×15"},{name:"Step-ups",detail:"3×10"},{name:"Donkey Kicks",detail:"3×12 each"},{name:"Hip Thrusts",detail:"3×15"}]},
-      {day:"Saturday",name:"Cardio + Core",icon:"🏃",duration:"25 min",exercises:[{name:"Brisk Walk",detail:"15 min"},{name:"Bicycle Crunches",detail:"3×15"},{name:"Leg Raises",detail:"3×10"}]},
-      {day:"Sunday",name:"Rest & Restore",icon:"😴",duration:"—",exercises:[{name:"Full rest day",detail:""},{name:"Stretching optional",detail:""},{name:"Meal prep",detail:""}]},
+      {day:"Monday",name:"Lower Body Basics",icon:"🦵",duration:"25 min",exercises:[{name:"Bodyweight Squats",detail:"3×12",modification:"Use a chair — sit back, then stand up. Hold a wall for balance if needed."},{name:"Lunges",detail:"3×10 each",modification:"Hold a wall or chair for balance. Reduce depth — only go as low as comfortable."},{name:"Glute Bridges",detail:"3×15",modification:"Keep your range smaller. Pause at the top instead of lifting higher."},{name:"Calf Raises",detail:"3×15",modification:"Hold a wall or counter for balance. Do single-leg only if pain-free."}]},
+      {day:"Tuesday",name:"Upper Body + Core",icon:"💪",duration:"25 min",exercises:[{name:"Wall Push-ups",detail:"3×10",modification:"Stand farther from wall to make easier, closer to wall makes it harder."},{name:"Dumbbell Rows",detail:"3×10",modification:"Use lighter weights or water bottles. Keep back flat, no jerking."},{name:"Shoulder Press",detail:"3×10",modification:"Use lighter weights. Press only as high as feels comfortable for shoulders."},{name:"Plank Hold",detail:"3×30s",modification:"Drop to your knees instead of toes, OR do a wall plank standing up."}]},
+      {day:"Wednesday",name:"Active Recovery",icon:"🧘",duration:"20 min",exercises:[{name:"Gentle Yoga Flow",detail:"15 min",modification:"Modify any pose that hurts. Use props if needed."},{name:"Foam Rolling",detail:"5 min",modification:"Apply less pressure. Skip painful areas — gentle is best."}]},
+      {day:"Thursday",name:"Full Body Circuit",icon:"⚡",duration:"25 min",exercises:[{name:"Jumping Jacks",detail:"3×20",modification:"Step side-to-side instead of jumping (low-impact version)."},{name:"Squats",detail:"3×12",modification:"Sit back into a chair and stand up. Use chair arms for support if needed."},{name:"Push-ups",detail:"3×8",modification:"Do them on your knees, or against a wall. Lower to comfortable depth only."},{name:"Mountain Climbers",detail:"3×15",modification:"Slow them down or do them standing — bring knees to chest one at a time."}]},
+      {day:"Friday",name:"Glutes & Legs",icon:"🍑",duration:"25 min",exercises:[{name:"Sumo Squats",detail:"3×15",modification:"Use a chair to sit back into. Reduce depth. Hold wall for balance."},{name:"Step-ups",detail:"3×10",modification:"Use a lower step or stair. Hold a wall or rail for balance."},{name:"Donkey Kicks",detail:"3×12 each",modification:"Stay on hands and knees. Don't kick too high — protect your lower back."},{name:"Hip Thrusts",detail:"3×15",modification:"Do them on the floor without weight, or use lighter weight."}]},
+      {day:"Saturday",name:"Cardio + Core",icon:"🏃",duration:"25 min",exercises:[{name:"Brisk Walk",detail:"15 min",modification:"Slow your pace if needed. Even a gentle stroll counts."},{name:"Bicycle Crunches",detail:"3×15",modification:"Keep feet on floor and just twist torso. Skip if it causes back pain."},{name:"Leg Raises",detail:"3×10",modification:"Keep one foot on the floor and only lift one leg at a time."}]},
+      {day:"Sunday",name:"Rest & Restore",icon:"😴",duration:"—",exercises:[{name:"Full rest day",detail:"",modification:"Reduce intensity — go slower, use less weight, or hold a wall for balance. Stop if anything hurts."},{name:"Stretching optional",detail:"",modification:"Hold each stretch 20-30 sec. Never stretch into pain."},{name:"Meal prep",detail:"",modification:"Reduce intensity — go slower, use less weight, or hold a wall for balance. Stop if anything hurts."}]},
     ],
     Intermediate: [
-      {day:"Monday",name:"Lower Body Strength",icon:"🦵",duration:"35 min",exercises:[{name:"Goblet Squats",detail:"4×12"},{name:"Romanian Deadlifts",detail:"3×12"},{name:"Walking Lunges",detail:"3×10 each"},{name:"Hip Thrusts",detail:"4×15"}]},
-      {day:"Tuesday",name:"Upper Push/Pull",icon:"💪",duration:"30 min",exercises:[{name:"Push-ups",detail:"4×12"},{name:"Dumbbell Rows",detail:"4×12"},{name:"Shoulder Press",detail:"3×10"},{name:"Plank",detail:"3×45s"}]},
-      {day:"Wednesday",name:"HIIT + Core",icon:"⚡",duration:"25 min",exercises:[{name:"Burpees",detail:"4×8"},{name:"Mountain Climbers",detail:"4×20"},{name:"Russian Twists",detail:"3×20"},{name:"Bicycle Crunches",detail:"3×20"}]},
-      {day:"Thursday",name:"Active Recovery",icon:"🧘",duration:"25 min",exercises:[{name:"Yoga Flow",detail:"20 min"},{name:"Foam Rolling",detail:"5 min"}]},
-      {day:"Friday",name:"Glute Focused",icon:"🍑",duration:"35 min",exercises:[{name:"Sumo Deadlifts",detail:"4×12"},{name:"Bulgarian Splits",detail:"3×10 each"},{name:"Cable Kickbacks",detail:"3×12"},{name:"Leg Press",detail:"3×15"}]},
-      {day:"Saturday",name:"Cardio + Abs",icon:"🏃",duration:"30 min",exercises:[{name:"Incline Walk",detail:"20 min"},{name:"Hanging Leg Raises",detail:"3×12"},{name:"Plank Variations",detail:"3×45s"}]},
-      {day:"Sunday",name:"Rest Day",icon:"😴",duration:"—",exercises:[{name:"Complete rest",detail:""},{name:"Meal prep",detail:""}]},
+      {day:"Monday",name:"Lower Body Strength",icon:"🦵",duration:"35 min",exercises:[{name:"Goblet Squats",detail:"4×12",modification:"Use lighter weight or no weight. Sit back into a chair to limit depth."},{name:"Romanian Deadlifts",detail:"3×12",modification:"Use lighter weights. Bend knees more if hamstrings feel tight."},{name:"Walking Lunges",detail:"3×10 each",modification:"Do stationary lunges holding a wall for balance instead."},{name:"Hip Thrusts",detail:"4×15",modification:"Do them on the floor without weight, or use lighter weight."}]},
+      {day:"Tuesday",name:"Upper Push/Pull",icon:"💪",duration:"30 min",exercises:[{name:"Push-ups",detail:"4×12",modification:"Do them on your knees, or against a wall. Lower to comfortable depth only."},{name:"Dumbbell Rows",detail:"4×12",modification:"Use lighter weights or water bottles. Keep back flat, no jerking."},{name:"Shoulder Press",detail:"3×10",modification:"Use lighter weights. Press only as high as feels comfortable for shoulders."},{name:"Plank",detail:"3×45s",modification:"Drop to your knees, or do a wall plank standing up."}]},
+      {day:"Wednesday",name:"HIIT + Core",icon:"⚡",duration:"25 min",exercises:[{name:"Burpees",detail:"4×8",modification:"Do step-back burpees (no jump). Or replace with squat-to-stand only."},{name:"Mountain Climbers",detail:"4×20",modification:"Slow them down or do them standing — bring knees to chest one at a time."},{name:"Russian Twists",detail:"3×20",modification:"Keep feet on floor. Skip if it causes back pain."},{name:"Bicycle Crunches",detail:"3×20",modification:"Keep feet on floor and just twist torso. Skip if it causes back pain."}]},
+      {day:"Thursday",name:"Active Recovery",icon:"🧘",duration:"25 min",exercises:[{name:"Yoga Flow",detail:"20 min",modification:"Skip any pose that causes pain. Use blocks or modify as needed."},{name:"Foam Rolling",detail:"5 min",modification:"Apply less pressure. Skip painful areas — gentle is best."}]},
+      {day:"Friday",name:"Glute Focused",icon:"🍑",duration:"35 min",exercises:[{name:"Sumo Deadlifts",detail:"4×12",modification:"Use much lighter weight. Focus on form over weight."},{name:"Bulgarian Splits",detail:"3×10 each",modification:"Hold a wall for balance. Reduce depth significantly."},{name:"Cable Kickbacks",detail:"3×12",modification:"Use just bodyweight on hands and knees instead."},{name:"Leg Press",detail:"3×15",modification:"Reduce weight. Only push to comfortable knee bend (avoid deep angles)."}]},
+      {day:"Saturday",name:"Cardio + Abs",icon:"🏃",duration:"30 min",exercises:[{name:"Incline Walk",detail:"20 min",modification:"Lower the incline or walk flat. Slow your pace if needed."},{name:"Hanging Leg Raises",detail:"3×12",modification:"Lie on floor and lift legs instead. Easier on shoulders and back."},{name:"Plank Variations",detail:"3×45s",modification:"Stick with knee plank or wall plank versions."}]},
+      {day:"Sunday",name:"Rest Day",icon:"😴",duration:"—",exercises:[{name:"Complete rest",detail:"",modification:"Reduce intensity — go slower, use less weight, or hold a wall for balance. Stop if anything hurts."},{name:"Meal prep",detail:"",modification:"Reduce intensity — go slower, use less weight, or hold a wall for balance. Stop if anything hurts."}]},
     ],
     Advanced: [
-      {day:"Monday",name:"Heavy Lower Body",icon:"🦵",duration:"45 min",exercises:[{name:"Barbell Squats",detail:"5×5"},{name:"Romanian Deadlifts",detail:"4×10"},{name:"Walking Lunges (weighted)",detail:"3×12 each"},{name:"Calf Raises",detail:"4×20"}]},
-      {day:"Tuesday",name:"Upper Power",icon:"💪",duration:"40 min",exercises:[{name:"Bench Press",detail:"5×8"},{name:"Bent Over Rows",detail:"4×10"},{name:"OHP",detail:"4×8"},{name:"Pull-ups",detail:"3×max"}]},
-      {day:"Wednesday",name:"HIIT Conditioning",icon:"⚡",duration:"30 min",exercises:[{name:"Box Jumps",detail:"4×10"},{name:"Burpees",detail:"4×12"},{name:"Kettlebell Swings",detail:"4×15"},{name:"Battle Ropes",detail:"4×30s"}]},
-      {day:"Thursday",name:"Active Recovery",icon:"🧘",duration:"30 min",exercises:[{name:"Yoga / Mobility",detail:"25 min"},{name:"Foam Rolling",detail:"5 min"}]},
-      {day:"Friday",name:"Glute Hypertrophy",icon:"🍑",duration:"40 min",exercises:[{name:"Hip Thrusts (heavy)",detail:"5×10"},{name:"Sumo Squats",detail:"4×12"},{name:"Single-Leg RDL",detail:"3×10 each"},{name:"Cable Kickbacks",detail:"3×15"}]},
-      {day:"Saturday",name:"Full Body + Cardio",icon:"🏃",duration:"40 min",exercises:[{name:"Deadlifts",detail:"4×6"},{name:"Push Press",detail:"4×8"},{name:"Farmer's Walk",detail:"3×40m"},{name:"Stairmaster",detail:"15 min"}]},
-      {day:"Sunday",name:"Rest & Recharge",icon:"😴",duration:"—",exercises:[{name:"Full rest",detail:""},{name:"Light walk optional",detail:""}]},
+      {day:"Monday",name:"Heavy Lower Body",icon:"🦵",duration:"45 min",exercises:[{name:"Barbell Squats",detail:"5×5",modification:"Use a much lighter weight or just dumbbells. Focus on form."},{name:"Romanian Deadlifts",detail:"4×10",modification:"Use lighter weights. Bend knees more if hamstrings feel tight."},{name:"Walking Lunges (weighted)",detail:"3×12 each",modification:"Do them without weight, holding a wall for balance."},{name:"Calf Raises",detail:"4×20",modification:"Hold a wall or counter for balance. Do single-leg only if pain-free."}]},
+      {day:"Tuesday",name:"Upper Power",icon:"💪",duration:"40 min",exercises:[{name:"Bench Press",detail:"5×8",modification:"Use lighter dumbbells. Keep range of motion small if shoulders hurt."},{name:"Bent Over Rows",detail:"4×10",modification:"Use a bench for support. Use lighter weights."},{name:"OHP",detail:"4×8",modification:"Use much lighter weight. Press only to comfortable height."},{name:"Pull-ups",detail:"3×max",modification:"Use assisted pull-up machine, or do inverted rows from a low bar instead."}]},
+      {day:"Wednesday",name:"HIIT Conditioning",icon:"⚡",duration:"30 min",exercises:[{name:"Box Jumps",detail:"4×10",modification:"Step up onto box instead of jumping. Use a lower box."},{name:"Burpees",detail:"4×12",modification:"Do step-back burpees (no jump). Or replace with squat-to-stand only."},{name:"Kettlebell Swings",detail:"4×15",modification:"Use a much lighter weight. Skip if back is sensitive."},{name:"Battle Ropes",detail:"4×30s",modification:"Reduce intensity — wave gently instead of slamming."}]},
+      {day:"Thursday",name:"Active Recovery",icon:"🧘",duration:"30 min",exercises:[{name:"Yoga / Mobility",detail:"25 min",modification:"Reduce intensity — go slower, use less weight, or hold a wall for balance. Stop if anything hurts."},{name:"Foam Rolling",detail:"5 min",modification:"Apply less pressure. Skip painful areas — gentle is best."}]},
+      {day:"Friday",name:"Glute Hypertrophy",icon:"🍑",duration:"40 min",exercises:[{name:"Hip Thrusts (heavy)",detail:"5×10",modification:"Use no weight or much lighter weight. Body weight only."},{name:"Sumo Squats",detail:"4×12",modification:"Use a chair to sit back into. Reduce depth. Hold wall for balance."},{name:"Single-Leg RDL",detail:"3×10 each",modification:"Hold a wall for balance. Don't go as deep."},{name:"Cable Kickbacks",detail:"3×15",modification:"Use just bodyweight on hands and knees instead."}]},
+      {day:"Saturday",name:"Full Body + Cardio",icon:"🏃",duration:"40 min",exercises:[{name:"Deadlifts",detail:"4×6",modification:"Use much lighter weight. Or do Romanian deadlifts instead."},{name:"Push Press",detail:"4×8",modification:"Use lighter weight or just dumbbells. Press straight up only."},{name:"Farmer's Walk",detail:"3×40m",modification:"Use lighter weights. Walk shorter distance."},{name:"Stairmaster",detail:"15 min",modification:"Reduce speed. Hold rails for balance."}]},
+      {day:"Sunday",name:"Rest & Recharge",icon:"😴",duration:"—",exercises:[{name:"Full rest",detail:"",modification:"Reduce intensity — go slower, use less weight, or hold a wall for balance. Stop if anything hurts."},{name:"Light walk optional",detail:"",modification:"Reduce intensity — go slower, use less weight, or hold a wall for balance. Stop if anything hurts."}]},
     ],
   };
 
@@ -307,10 +330,51 @@ function makeFallback(a, isPaid = false) {
   return { meal_plan, workout_plan, grocery_list };
 }
 
+// ─── DIET HELPERS ───
+// diet is now an array like ["Lacto-Vegetarian", "Jain"]
+// these helpers normalize for display, AI prompts, and DB storage
+function dietToString(d) {
+  if (!d) return "";
+  if (Array.isArray(d)) return d.join(" + ");
+  return d;
+}
+function dietToArray(d) {
+  if (!d) return [];
+  if (Array.isArray(d)) return d;
+  return [d]; // legacy single-string diets
+}
+function dietHas(d, type) {
+  return dietToArray(d).includes(type);
+}
+
+// ─── GROCERY MERGE ───
+// Merge two grocery lists from different weeks, dedup items per category
+function mergeGroceryLists(a, b) {
+  const merged = {};
+  [...(a || []), ...(b || [])].forEach(cat => {
+    if (!cat?.category) return;
+    if (!merged[cat.category]) merged[cat.category] = new Set();
+    (cat.items || []).forEach(item => merged[cat.category].add(item));
+  });
+  return Object.entries(merged).map(([category, items]) => ({
+    category,
+    items: Array.from(items)
+  }));
+}
+
 // ─── QUIZ DATA ───
 const QUIZ = [
   {id:"goal",q:"What's your primary wellness goal?",sub:"We'll personalize everything around this",opts:[{l:"Lose Weight",e:"🔥",d:"Sustainable fat loss"},{l:"Build Strength",e:"💪",d:"Tone & define"},{l:"Balance Hormones",e:"🌸",d:"Cycle & cortisol support"},{l:"Improve Digestion",e:"🌿",d:"Gut health reset"}]},
-  {id:"diet",q:"What's your dietary preference?",sub:"So we nail every recipe for you",opts:[{l:"Lacto-Vegetarian",e:"🥛",d:"Dairy, no eggs"},{l:"Lacto-Ovo Vegetarian",e:"🧀",d:"Dairy & eggs"},{l:"Vegan",e:"🌱",d:"Fully plant-based"},{l:"Pescatarian",e:"🐟",d:"Vegetarian + seafood"},{l:"Non-Vegetarian",e:"🍗",d:"Includes all proteins"}]},
+  {id:"diet",q:"What's your dietary preference?",sub:"Select up to 3 — we'll respect them all",multi:true,maxSelect:3,opts:[
+    {l:"Lacto-Vegetarian",e:"🥛",d:"Dairy, no eggs/meat",incompatible:["Vegan","Pescatarian","Non-Vegetarian","Pollotarian"]},
+    {l:"Lacto-Ovo Vegetarian",e:"🧀",d:"Dairy & eggs, no meat",incompatible:["Vegan","Pescatarian","Non-Vegetarian","Pollotarian","Jain"]},
+    {l:"Vegan",e:"🌱",d:"Fully plant-based",incompatible:["Lacto-Vegetarian","Lacto-Ovo Vegetarian","Pescatarian","Non-Vegetarian","Pollotarian","Eggetarian"]},
+    {l:"Pescatarian",e:"🐟",d:"Vegetarian + seafood",incompatible:["Lacto-Vegetarian","Lacto-Ovo Vegetarian","Vegan","Non-Vegetarian","Jain","Pollotarian"]},
+    {l:"Non-Vegetarian",e:"🍗",d:"Includes all proteins",incompatible:["Lacto-Vegetarian","Lacto-Ovo Vegetarian","Vegan","Pescatarian","Jain"]},
+    {l:"Eggetarian",e:"🥚",d:"Vegetarian + eggs only",incompatible:["Vegan","Pescatarian","Non-Vegetarian","Pollotarian","Jain"]},
+    {l:"Jain",e:"🙏",d:"No root veg, no eggs/meat",incompatible:["Vegan","Pescatarian","Non-Vegetarian","Pollotarian","Eggetarian","Lacto-Ovo Vegetarian"]},
+    {l:"Pollotarian",e:"🍗",d:"Chicken only, no red meat",incompatible:["Lacto-Vegetarian","Lacto-Ovo Vegetarian","Vegan","Pescatarian","Eggetarian","Jain"]}
+  ]},
   {id:"fitness",q:"What's your current fitness level?",sub:"No judgment — just finding your starting point",opts:[{l:"Beginner",e:"🌱",d:"Just getting started"},{l:"Intermediate",e:"⚡",d:"Somewhat active"},{l:"Advanced",e:"🏋️",d:"Regular training"}]},
   {id:"time",q:"How much time can you cook each day?",sub:"We'll match recipes to your schedule",opts:[{l:"15-20 min",e:"⏱️",d:"Quick & easy"},{l:"30-40 min",e:"🍳",d:"Moderate prep"},{l:"45-60 min",e:"👩‍🍳",d:"Love cooking!"}]},
   {id:"focus",q:"Any special focus areas?",sub:"Select all that apply",multi:true,opts:[{l:"High Protein",e:"💪"},{l:"Anti-Inflammatory",e:"🌿"},{l:"Low Carb",e:"🥗"},{l:"Iron-Rich",e:"🫘"},{l:"Gut-Friendly",e:"🦠"},{l:"Hormone Support",e:"🌸"},{l:"Authentic Gujarati Flavours",e:"🇮🇳"}]},
@@ -508,8 +572,42 @@ function EmailScreen({onSubmit,onLogin}){
 
 function QuizScreen({step,answers,onAnswer,onBack,onNext}){
   const d=QUIZ[step];const sel=answers[d.id]||(d.multi?[]:null);
-  const pick=l=>d.multi?onAnswer(d.id,(Array.isArray(sel)?sel:[]).includes(l)?sel.filter(x=>x!==l):[...(sel||[]),l]):onAnswer(d.id,l);
-  const ok=d.multi?Array.isArray(sel)&&sel.length>0:!!sel;
+  const selArr = Array.isArray(sel) ? sel : [];
+
+  // Build set of incompatible options based on current selections
+  const incompatibleSet = new Set();
+  if (d.multi) {
+    selArr.forEach(selected => {
+      const opt = d.opts.find(o => o.l === selected);
+      if (opt?.incompatible) {
+        opt.incompatible.forEach(i => incompatibleSet.add(i));
+      }
+    });
+  }
+
+  // Check if max select reached
+  const maxReached = d.maxSelect && selArr.length >= d.maxSelect;
+
+  const isOptDisabled = (l) => {
+    if (!d.multi) return false;
+    const isSelected = selArr.includes(l);
+    if (isSelected) return false; // Allow deselect
+    if (incompatibleSet.has(l)) return true; // Smart disable
+    if (maxReached) return true; // Max reached
+    return false;
+  };
+
+  const pick = l => {
+    if (isOptDisabled(l)) return;
+    if (d.multi) {
+      const isSelected = selArr.includes(l);
+      onAnswer(d.id, isSelected ? selArr.filter(x => x !== l) : [...selArr, l]);
+    } else {
+      onAnswer(d.id, l);
+    }
+  };
+  const ok = d.multi ? selArr.length > 0 : !!sel;
+
   return <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column"}}>
     <div style={{padding:"16px 18px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <button onClick={onBack} style={{background:"none",border:"none",fontFamily:dm,fontSize:13,color:C.mt,cursor:"pointer"}}>← Back</button>
@@ -518,13 +616,24 @@ function QuizScreen({step,answers,onAnswer,onBack,onNext}){
     </div>
     <div style={{display:"flex",gap:4,padding:"0 18px"}}>{QUIZ.map((_,i)=><div key={i} style={{flex:1,height:4,borderRadius:2,background:i<=step?`linear-gradient(90deg,${C.coral},${C.peach})`:C.peachL,transition:"all .4s"}}/>)}</div>
     <div style={{padding:"26px 20px",flex:1}}>
-      <Fi key={step} delay={30}><h2 style={{fontFamily:pf,fontSize:24,fontWeight:600,color:C.dk,lineHeight:1.25}}>{d.q}</h2><p style={{fontFamily:dm,fontSize:13,color:C.mtL,margin:"5px 0 22px"}}>{d.sub}</p></Fi>
+      <Fi key={step} delay={30}>
+        <h2 style={{fontFamily:pf,fontSize:24,fontWeight:600,color:C.dk,lineHeight:1.25}}>{d.q}</h2>
+        <p style={{fontFamily:dm,fontSize:13,color:C.mtL,margin:"5px 0 22px"}}>{d.sub}{d.maxSelect && ` (${selArr.length}/${d.maxSelect})`}</p>
+      </Fi>
       <div style={{display:"flex",flexDirection:"column",gap:9}}>
-        {d.opts.map((o,i)=>{const on=d.multi?Array.isArray(sel)&&sel.includes(o.l):sel===o.l; return <Fi key={o.l} delay={60+i*40}><button onClick={()=>pick(o.l)} style={{width:"100%",background:C.wh,border:on?`2px solid ${C.coral}`:"2px solid transparent",borderRadius:13,padding:"15px 16px",display:"flex",alignItems:"center",gap:11,cursor:"pointer",boxShadow:on?`0 5px 20px ${C.coral}14`:"0 1px 8px rgba(0,0,0,.03)",transition:"all .25s",textAlign:"left"}}>
-          <span style={{fontSize:24,width:36,textAlign:"center"}}>{o.e}</span>
-          <div style={{flex:1}}><div style={{fontFamily:dm,fontSize:14,fontWeight:600,color:C.dk}}>{o.l}</div>{o.d&&<div style={{fontFamily:dm,fontSize:11,color:C.mtL,marginTop:1}}>{o.d}</div>}</div>
-          {on&&<div style={{width:20,height:20,borderRadius:"50%",background:`linear-gradient(135deg,${C.coral},${C.peach})`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{color:"#fff",fontSize:12}}>✓</span></div>}
-        </button></Fi>})}
+        {d.opts.map((o,i)=>{
+          const on = d.multi ? selArr.includes(o.l) : sel === o.l;
+          const disabled = isOptDisabled(o.l);
+          return <Fi key={o.l} delay={60+i*40}><button onClick={()=>pick(o.l)} disabled={disabled} style={{width:"100%",background:C.wh,border:on?`2px solid ${C.coral}`:"2px solid transparent",borderRadius:13,padding:"15px 16px",display:"flex",alignItems:"center",gap:11,cursor:disabled?"not-allowed":"pointer",boxShadow:on?`0 5px 20px ${C.coral}14`:"0 1px 8px rgba(0,0,0,.03)",transition:"all .25s",textAlign:"left",opacity:disabled?0.4:1}}>
+            <span style={{fontSize:24,width:36,textAlign:"center"}}>{o.e}</span>
+            <div style={{flex:1}}>
+              <div style={{fontFamily:dm,fontSize:14,fontWeight:600,color:C.dk}}>{o.l}</div>
+              {o.d&&<div style={{fontFamily:dm,fontSize:11,color:C.mtL,marginTop:1}}>{o.d}</div>}
+              {disabled && incompatibleSet.has(o.l) && <div style={{fontFamily:dm,fontSize:10,color:C.coral,marginTop:2,fontStyle:"italic"}}>Not compatible with your selection</div>}
+            </div>
+            {on&&<div style={{width:20,height:20,borderRadius:"50%",background:`linear-gradient(135deg,${C.coral},${C.peach})`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{color:"#fff",fontSize:12}}>✓</span></div>}
+          </button></Fi>;
+        })}
       </div>
     </div>
     {(d.multi||ok)&&<div style={{padding:"12px 20px 26px"}}><Btn full onClick={onNext} disabled={!ok}>{step===QUIZ.length-1?"Generate My Free Plan ✨":"Continue →"}</Btn></div>}
@@ -633,15 +742,21 @@ function PreviewScreen({plan,answers,user,isPaid,onUnlock}){
   </div>;
 }
 
-function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade,planHistory,switchPlan,planCreatedAt}){
+function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade,planHistory,switchPlan,planCreatedAt,generateWeek,weekGenerating,deletePlan}){
   const[tab,setTab]=useState("meals");const[day,setDay]=useState(0);const[exp,setExp]=useState(null);const[chk,setChk]=useState({});const[water,setWater]=useState(3);const[mood,setMood]=useState(null);const[btab,setBtab]=useState("home");const[libExp,setLibExp]=useState(null);const[week,setWeek]=useState(1);const[planSelOpen,setPlanSelOpen]=useState(false);const[currentPlanIdx,setCurrentPlanIdx]=useState(planHistory.length>0?planHistory.length-1:0);
   if(!plan?.meal_plan) return <div style={{padding:40,textAlign:"center",fontFamily:dm}}>Loading...</div>;
   const totalPlanDays = plan.meal_plan.length;
-  const hasWeeks = totalPlanDays > 7;
+  // For paid users, always show 4 weeks (some may be locked/empty)
+  const hasWeeks = isPaid;
+  const totalWeeks = isPaid ? 4 : 1;
   const weekStart = (week - 1) * 7;
   const weekEnd = Math.min(weekStart + 7, totalPlanDays);
   const currentWeekMeals = plan.meal_plan.slice(weekStart, weekEnd);
   const currentWeekWorkouts = (plan.workout_plan || []).slice(weekStart, weekEnd);
+  // Check if current week is "locked" (no data yet for paid users)
+  const isCurrentWeekLocked = isPaid && currentWeekMeals.length === 0;
+  // Check which weeks have data
+  const weekHasData = (w) => plan.meal_plan.length >= (w * 7);
   const days = currentWeekMeals.map(d=>d.day?.slice(0,3));
   const meals = currentWeekMeals[day]?.meals || [];
   const tCal = meals.reduce((s,m)=>s+(m.cal||0),0);
@@ -684,7 +799,7 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,paddingTop:10,borderTop:`1px solid ${C.bgW}`}}>
           <div><div style={{fontFamily:dm,fontSize:9,color:C.mtL,textTransform:"uppercase",letterSpacing:".04em"}}>Goal</div><div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk,marginTop:2}}>{answers.goal||"—"}</div></div>
-          <div><div style={{fontFamily:dm,fontSize:9,color:C.mtL,textTransform:"uppercase",letterSpacing:".04em"}}>Diet</div><div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk,marginTop:2}}>{answers.diet||"—"}</div></div>
+          <div><div style={{fontFamily:dm,fontSize:9,color:C.mtL,textTransform:"uppercase",letterSpacing:".04em"}}>Diet</div><div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk,marginTop:2}}>{dietToString(answers.diet)||"—"}</div></div>
           <div><div style={{fontFamily:dm,fontSize:9,color:C.mtL,textTransform:"uppercase",letterSpacing:".04em"}}>Fitness</div><div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk,marginTop:2}}>{answers.fitness||"—"}</div></div>
           <div><div style={{fontFamily:dm,fontSize:9,color:C.mtL,textTransform:"uppercase",letterSpacing:".04em"}}>Plan</div><div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:isPaid?C.coral:C.gr,marginTop:2}}>{isPaid?"28-Day Premium":`${FREE_ACCESS_DAYS}-Day Free`}</div></div>
         </div>
@@ -703,6 +818,34 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
           <div style={{fontFamily:dm,fontSize:9,color:C.mtL}}>{isPaid?"Unlimited":`${genCount}/${MAX_FREE_GENS} used`}</div>
         </button>
       </div>
+
+      {/* Saved Plans Section */}
+      {planHistory.length > 0 && <div style={{background:C.wh,borderRadius:14,padding:14,marginBottom:12,boxShadow:"0 1px 8px rgba(0,0,0,.03)"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+          <h3 style={{fontFamily:dm,fontSize:13,fontWeight:700,color:C.dk}}>📋 Your Saved Plans</h3>
+          <span style={{fontFamily:dm,fontSize:10,color:C.mtL}}>{planHistory.length} saved</span>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {[...planHistory].reverse().map((h, revIdx) => {
+            const i = planHistory.length - 1 - revIdx;
+            const isMostRecent = revIdx === 0;
+            return <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:10,background:isMostRecent ? `${C.coral}08` : C.bgW,border:isMostRecent ? `1px solid ${C.coral}25` : "1px solid transparent"}}>
+              <button onClick={()=>{switchPlan(i); setBtab("plan");}} style={{flex:1,background:"none",border:"none",cursor:"pointer",textAlign:"left",padding:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:18}}>{isMostRecent ? "⭐" : "📋"}</span>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk}}>{isMostRecent ? "Most Recent" : `Plan ${i+1}`}</div>
+                    <div style={{fontFamily:dm,fontSize:10,color:C.mtL,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{h.answers?.goal} · {dietToString(h.answers?.diet)}</div>
+                  </div>
+                </div>
+              </button>
+              <button onClick={()=>deletePlan(i)} style={{background:"none",border:"none",padding:"6px 8px",cursor:"pointer",borderRadius:6,opacity:0.5,transition:"opacity 0.2s"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.5}>
+                <span style={{fontSize:14}}>🗑️</span>
+              </button>
+            </div>;
+          })}
+        </div>
+      </div>}
 
       {/* Upgrade CTA for free users */}
       {!isPaid && <div style={{background:`linear-gradient(135deg,${C.coral}06,${C.peach}10)`,borderRadius:14,padding:14,border:`1px solid ${C.coral}18`,marginBottom:12,position:"relative",overflow:"hidden"}}>
@@ -728,7 +871,7 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
           <div style={{flex:1,minWidth:0}}>
             <h2 style={{fontFamily:pf,fontSize:20,fontWeight:600,color:C.dk,animation:"slideUp 0.4s ease"}}>Your Plan</h2>
-            <p style={{fontFamily:dm,fontSize:12,color:C.mt,marginTop:1}}>Your {answers.diet} plan for <b>{answers.goal}</b></p>
+            <p style={{fontFamily:dm,fontSize:12,color:C.mt,marginTop:1}}>Your {dietToString(answers.diet)} plan for <b>{answers.goal}</b></p>
           </div>
           {planHistory.length > 1 && <button onClick={()=>setPlanSelOpen(!planSelOpen)} style={{background:C.wh,border:`1px solid ${C.peachL}`,borderRadius:10,padding:"7px 11px",cursor:"pointer",display:"flex",alignItems:"center",gap:4,fontFamily:dm,fontSize:11,fontWeight:600,color:C.dk,whiteSpace:"nowrap"}}>
             📋 {planHistory.length} Saved
@@ -769,14 +912,29 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
 
       <div style={{padding:"12px 16px"}}>
         {tab==="meals"&&<>
-          {/* Week selector — only for 28-day plans */}
+          {/* Week selector — for paid users */}
           {hasWeeks && <div style={{display:"flex",gap:6,marginBottom:10,padding:"4px",background:C.bgW,borderRadius:12}}>
-            {[1,2,3,4].map(w => <button key={w} onClick={()=>{setWeek(w);setDay(0);setExp(null)}} style={{flex:1,background:week===w?C.wh:"transparent",border:"none",borderRadius:9,padding:"8px 4px",cursor:"pointer",boxShadow:week===w?`0 2px 8px ${C.coral}20`:"none",transition:"all 0.2s ease"}}>
-              <div style={{fontFamily:dm,fontSize:9,fontWeight:600,color:week===w?C.coral:C.mtL,textTransform:"uppercase",letterSpacing:".05em"}}>Week</div>
-              <div style={{fontFamily:pf,fontSize:16,fontWeight:700,color:week===w?C.dk:C.mtL,marginTop:-2}}>{w}</div>
-            </button>)}
+            {[1,2,3,4].map(w => {
+              const has = weekHasData(w);
+              return <button key={w} onClick={()=>{setWeek(w);setDay(0);setExp(null)}} style={{flex:1,background:week===w?C.wh:"transparent",border:"none",borderRadius:9,padding:"8px 4px",cursor:"pointer",boxShadow:week===w?`0 2px 8px ${C.coral}20`:"none",transition:"all 0.2s ease",position:"relative"}}>
+                <div style={{fontFamily:dm,fontSize:9,fontWeight:600,color:week===w?C.coral:C.mtL,textTransform:"uppercase",letterSpacing:".05em"}}>Week</div>
+                <div style={{fontFamily:pf,fontSize:16,fontWeight:700,color:week===w?C.dk:C.mtL,marginTop:-2}}>{w}{!has && <span style={{fontSize:11,marginLeft:2}}>🔒</span>}</div>
+              </button>;
+            })}
           </div>}
 
+          {/* Locked week — show generate CTA */}
+          {isCurrentWeekLocked && <div style={{background:`linear-gradient(135deg,${C.peachL}40,${C.blush}60)`,borderRadius:16,padding:24,marginTop:16,textAlign:"center",border:`1px solid ${C.coral}25`,animation:"fadeScale 0.4s ease"}}>
+            <span style={{fontSize:36}}>🔒</span>
+            <h3 style={{fontFamily:pf,fontSize:18,fontWeight:600,color:C.dk,marginTop:8}}>Week {week} is locked</h3>
+            <p style={{fontFamily:dm,fontSize:13,color:C.mt,marginTop:4,lineHeight:1.5,maxWidth:280,marginLeft:"auto",marginRight:"auto"}}>Generate Week {week} on-demand. Takes about 30 seconds and includes 7 unique meals + workouts.</p>
+            <Btn onClick={()=>generateWeek(week)} style={{marginTop:14,opacity:weekGenerating?0.6:1,cursor:weekGenerating?"not-allowed":"pointer"}} disabled={!!weekGenerating}>
+              {weekGenerating === week ? "Generating..." : weekGenerating ? "Please wait..." : `Generate Week ${week} →`}
+            </Btn>
+            {weekGenerating === week && <p style={{fontFamily:dm,fontSize:11,color:C.mtL,marginTop:10}}>⏱️ Working on it... please don't refresh</p>}
+          </div>}
+
+          {!isCurrentWeekLocked && <>
           <div style={{display:"flex",gap:4,marginBottom:10,overflowX:"auto"}}>{days.map((d,i)=><button key={i} onClick={()=>{setDay(i);setExp(null)}} style={{flex:"0 0 auto",width:38,height:46,borderRadius:11,border:"none",background:day===i?C.coral:C.wh,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,boxShadow:day===i?`0 3px 10px ${C.coral}28`:"0 1px 4px rgba(0,0,0,.03)"}}><span style={{fontFamily:dm,fontSize:8,fontWeight:600,color:day===i?"#fff":C.mtL}}>{d}</span><span style={{fontFamily:dm,fontSize:11,fontWeight:700,color:day===i?"#fff":C.dk}}>{i+1}</span></button>)}</div>
 
           {meals.map((m,i)=>{const k=`${week}-${day}-${i}`;const isE=exp===k;const isDone=chk[k]; return <div key={k} style={{background:C.wh,borderRadius:13,marginBottom:7,overflow:"hidden",opacity:(isDone&&!isE)?0.5:1,boxShadow:"0 1px 8px rgba(0,0,0,.03)",transition:"opacity .3s"}}>
@@ -819,25 +977,114 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
 
           {/* Etsy upsells */}
           {rel.length>0&&<div style={{marginTop:8}}><h4 style={{fontFamily:pf,fontSize:14,fontWeight:600,color:C.dk,marginBottom:6}}>Go deeper with your goals</h4>{rel.slice(0,2).map(p=><a key={p.id} href={p.url} target="_blank" rel="noopener noreferrer" style={{textDecoration:"none",display:"flex",alignItems:"center",gap:10,background:C.wh,borderRadius:11,padding:10,marginBottom:5,boxShadow:"0 1px 5px rgba(0,0,0,.03)",border:`1px solid ${C.peachL}`}}><span style={{fontSize:22}}>{p.e}</span><div style={{flex:1}}><div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk}}>{p.name}</div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>PDF • <span style={{color:C.coral,fontWeight:600}}>{p.price}</span></div></div><span style={{fontFamily:dm,fontSize:10,color:C.coral,fontWeight:600}}>View →</span></a>)}</div>}
+          </>}
         </>}
 
         {tab==="workout"&&<>
+          {/* Safety Disclaimer Banner */}
+          {!isCurrentWeekLocked && <div style={{background:`linear-gradient(135deg,${C.bl}08,${C.bl}15)`,borderLeft:`3px solid ${C.bl}`,borderRadius:10,padding:"10px 12px",marginBottom:10,display:"flex",alignItems:"flex-start",gap:8}}>
+            <span style={{fontSize:16,flexShrink:0,marginTop:1}}>⚠️</span>
+            <div style={{flex:1}}>
+              <div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk,lineHeight:1.4}}>Listen to your body</div>
+              <div style={{fontFamily:dm,fontSize:11,color:C.mt,marginTop:2,lineHeight:1.4}}>If any movement causes pain, stop and try a modification. <button onClick={()=>setExp(exp==="safety"?null:"safety")} style={{background:"none",border:"none",color:C.bl,fontFamily:dm,fontSize:11,fontWeight:600,cursor:"pointer",padding:0,textDecoration:"underline"}}>Read full safety guide →</button></div>
+            </div>
+          </div>}
+
+          {/* Expandable Full Safety Guide */}
+          {exp==="safety" && !isCurrentWeekLocked && <div style={{background:C.wh,borderRadius:12,padding:16,marginBottom:10,boxShadow:"0 2px 12px rgba(0,0,0,.05)",animation:"slideUp 0.3s ease"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+              <h4 style={{fontFamily:pf,fontSize:15,fontWeight:600,color:C.dk}}>🛡️ Workout Safety Guide</h4>
+              <button onClick={()=>setExp(null)} style={{background:"none",border:"none",fontSize:16,color:C.mtL,cursor:"pointer",padding:"0 4px"}}>✕</button>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:9}}>
+              <div style={{display:"flex",gap:8}}>
+                <span style={{fontSize:14,flexShrink:0}}>👩‍⚕️</span>
+                <p style={{fontFamily:dm,fontSize:12,color:C.mt,lineHeight:1.5,margin:0}}><b style={{color:C.dk}}>Talk to your doctor first</b> — especially if you have existing knee, back, hip, or ankle issues, are pregnant or postpartum, recovering from injury, or have heart conditions.</p>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <span style={{fontSize:14,flexShrink:0}}>🦴</span>
+                <p style={{fontFamily:dm,fontSize:12,color:C.mt,lineHeight:1.5,margin:0}}><b style={{color:C.dk}}>Joint-friendly swaps:</b> Replace squats with chair sit-stands · jumps with marches · planks with wall planks · lunges with split-stance squats · burpees with step-ups.</p>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <span style={{fontSize:14,flexShrink:0}}>📏</span>
+                <p style={{fontFamily:dm,fontSize:12,color:C.mt,lineHeight:1.5,margin:0}}><b style={{color:C.dk}}>Heavier body type?</b> Start with seated, standing, or wall-supported versions of moves. Skip jumping/plyometrics until you build strength. Reduce reps if needed.</p>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <span style={{fontSize:14,flexShrink:0}}>🩹</span>
+                <p style={{fontFamily:dm,fontSize:12,color:C.mt,lineHeight:1.5,margin:0}}><b style={{color:C.dk}}>Pain ≠ progress.</b> Sharp or shooting pain in joints means STOP. Sore muscles next day = normal. Sharp pain during = not normal.</p>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <span style={{fontSize:14,flexShrink:0}}>💧</span>
+                <p style={{fontFamily:dm,fontSize:12,color:C.mt,lineHeight:1.5,margin:0}}><b style={{color:C.dk}}>Always:</b> Warm up 5 min · stay hydrated · breathe through every rep · rest 30-60 sec between sets · stop if dizzy or short of breath.</p>
+              </div>
+            </div>
+            <div style={{background:C.bgW,borderRadius:8,padding:"8px 10px",marginTop:10}}>
+              <p style={{fontFamily:dm,fontSize:10,color:C.mtL,lineHeight:1.4,margin:0,fontStyle:"italic"}}>This app provides general fitness guidance, not medical advice. By using these workouts, you acknowledge you exercise at your own risk. Stop and consult a healthcare professional if you experience pain, dizziness, or any concerning symptoms.</p>
+            </div>
+          </div>}
+
           {/* Week selector for workouts too */}
           {hasWeeks && <div style={{display:"flex",gap:6,marginBottom:10,padding:"4px",background:C.bgW,borderRadius:12}}>
-            {[1,2,3,4].map(w => <button key={w} onClick={()=>{setWeek(w);setDay(0)}} style={{flex:1,background:week===w?C.wh:"transparent",border:"none",borderRadius:9,padding:"8px 4px",cursor:"pointer",boxShadow:week===w?`0 2px 8px ${C.coral}20`:"none",transition:"all 0.2s ease"}}>
-              <div style={{fontFamily:dm,fontSize:9,fontWeight:600,color:week===w?C.coral:C.mtL,textTransform:"uppercase",letterSpacing:".05em"}}>Week</div>
-              <div style={{fontFamily:pf,fontSize:16,fontWeight:700,color:week===w?C.dk:C.mtL,marginTop:-2}}>{w}</div>
-            </button>)}
+            {[1,2,3,4].map(w => {
+              const has = weekHasData(w);
+              return <button key={w} onClick={()=>{setWeek(w);setDay(0)}} style={{flex:1,background:week===w?C.wh:"transparent",border:"none",borderRadius:9,padding:"8px 4px",cursor:"pointer",boxShadow:week===w?`0 2px 8px ${C.coral}20`:"none",transition:"all 0.2s ease"}}>
+                <div style={{fontFamily:dm,fontSize:9,fontWeight:600,color:week===w?C.coral:C.mtL,textTransform:"uppercase",letterSpacing:".05em"}}>Week</div>
+                <div style={{fontFamily:pf,fontSize:16,fontWeight:700,color:week===w?C.dk:C.mtL,marginTop:-2}}>{w}{!has && <span style={{fontSize:11,marginLeft:2}}>🔒</span>}</div>
+              </button>;
+            })}
           </div>}
-          {currentWeekWorkouts.map((w,i)=><div key={i} style={{background:C.wh,borderRadius:13,padding:13,boxShadow:"0 1px 8px rgba(0,0,0,.03)",marginBottom:7,border:i===day?`2px solid ${C.coral}`:"2px solid transparent"}}>
-          <span style={{fontFamily:dm,fontSize:10,color:C.coral,fontWeight:600}}>{w.day}{i===day?" • Today":""}</span>
+          {/* Locked week CTA for workouts */}
+          {isCurrentWeekLocked && <div style={{background:`linear-gradient(135deg,${C.peachL}40,${C.blush}60)`,borderRadius:16,padding:24,marginTop:16,textAlign:"center",border:`1px solid ${C.coral}25`,animation:"fadeScale 0.4s ease"}}>
+            <span style={{fontSize:36}}>🔒</span>
+            <h3 style={{fontFamily:pf,fontSize:18,fontWeight:600,color:C.dk,marginTop:8}}>Week {week} workouts locked</h3>
+            <p style={{fontFamily:dm,fontSize:13,color:C.mt,marginTop:4,lineHeight:1.5,maxWidth:280,marginLeft:"auto",marginRight:"auto"}}>Generate Week {week} to unlock 7 days of workouts customized for your fitness level.</p>
+            <Btn onClick={()=>generateWeek(week)} style={{marginTop:14,opacity:weekGenerating?0.6:1,cursor:weekGenerating?"not-allowed":"pointer"}} disabled={!!weekGenerating}>
+              {weekGenerating === week ? "Generating..." : weekGenerating ? "Please wait..." : `Generate Week ${week} →`}
+            </Btn>
+          </div>}
+          {!isCurrentWeekLocked && currentWeekWorkouts.map((w,i)=><div key={i} style={{background:C.wh,borderRadius:13,padding:13,boxShadow:"0 1px 8px rgba(0,0,0,.03)",marginBottom:7,border:i===day?`2px solid ${C.coral}`:"2px solid transparent"}}>
+          <span style={{fontFamily:dm,fontSize:10,color:C.coral,fontWeight:600}}>{w.day}{i===day?" • Today":""}{hasWeeks?` • Week ${week}`:""}</span>
           <div style={{fontFamily:dm,fontSize:14,fontWeight:600,color:C.dk,marginTop:1}}>{w.icon} {w.name}</div>
           <span style={{fontFamily:dm,fontSize:11,color:C.mtL}}>{w.duration}</span>
-          <div style={{display:"flex",flexDirection:"column",gap:3,marginTop:8}}>{(w.exercises||[]).map((ex,j)=><div key={j} style={{display:"flex",alignItems:"center",gap:7,padding:"4px 9px",background:C.bgW,borderRadius:7}}><span style={{fontFamily:dm,fontSize:10,fontWeight:700,color:C.coral,width:14}}>{j+1}</span><span style={{fontFamily:dm,fontSize:11,fontWeight:600,color:C.dk}}>{typeof ex==="string"?ex:ex.name}</span>{typeof ex!=="string"&&ex.detail&&<span style={{fontFamily:dm,fontSize:10,color:C.mtL,marginLeft:"auto"}}>{ex.detail}</span>}</div>)}</div>
+          <div style={{display:"flex",flexDirection:"column",gap:5,marginTop:8}}>
+            {(w.exercises||[]).map((ex,j)=>{
+              const exKey = `ex-${i}-${j}`;
+              const exObj = typeof ex === "string" ? {name:ex} : ex;
+              const isExExp = exp === exKey;
+              const hasMod = exObj.modification || exObj.alternative;
+              return <div key={j} style={{background:C.bgW,borderRadius:8,overflow:"hidden",transition:"all 0.2s"}}>
+                <div onClick={hasMod ? ()=>setExp(isExExp?null:exKey) : undefined} style={{display:"flex",alignItems:"center",gap:7,padding:"6px 9px",cursor:hasMod?"pointer":"default"}}>
+                  <span style={{fontFamily:dm,fontSize:10,fontWeight:700,color:C.coral,width:14}}>{j+1}</span>
+                  <span style={{fontFamily:dm,fontSize:11,fontWeight:600,color:C.dk,flex:1}}>{exObj.name}</span>
+                  {exObj.detail && <span style={{fontFamily:dm,fontSize:10,color:C.mtL}}>{exObj.detail}</span>}
+                  {hasMod && <span style={{fontSize:10,color:C.bl,opacity:0.7,marginLeft:4,transform:isExExp?"rotate(180deg)":"none",transition:"transform 0.2s"}}>▾</span>}
+                </div>
+                {isExExp && hasMod && <div style={{padding:"8px 12px 10px 32px",background:`${C.bl}06`,borderTop:`1px solid ${C.bl}15`}}>
+                  <div style={{display:"flex",gap:6,alignItems:"flex-start"}}>
+                    <span style={{fontSize:11,marginTop:1}}>🪑</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontFamily:dm,fontSize:9,fontWeight:700,color:C.bl,textTransform:"uppercase",letterSpacing:".05em"}}>Easier Modification</div>
+                      <p style={{fontFamily:dm,fontSize:11,color:C.mt,lineHeight:1.5,marginTop:2}}>{exObj.modification || exObj.alternative}</p>
+                    </div>
+                  </div>
+                </div>}
+              </div>;
+            })}
+          </div>
         </div>)}
         </>}
 
-        {tab==="grocery"&&<>{(plan.grocery_list||[]).map((g,i)=><div key={i} style={{marginBottom:12}}><h4 style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk,marginBottom:5}}>{g.category}</h4><div style={{background:C.wh,borderRadius:11,boxShadow:"0 1px 6px rgba(0,0,0,.03)"}}>{(g.items||[]).map((item,j)=><div key={j} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 12px",borderBottom:j<g.items.length-1?`1px solid ${C.bgW}`:"none"}}><div style={{width:16,height:16,borderRadius:4,border:`2px solid ${C.peachL}`,flexShrink:0}}/><span style={{fontFamily:dm,fontSize:12,color:C.dk}}>{item}</span></div>)}</div></div>)}</>}
+        {tab==="grocery"&&<>
+          {isCurrentWeekLocked && <div style={{background:`linear-gradient(135deg,${C.peachL}40,${C.blush}60)`,borderRadius:16,padding:24,marginTop:16,textAlign:"center",border:`1px solid ${C.coral}25`,animation:"fadeScale 0.4s ease"}}>
+            <span style={{fontSize:36}}>🔒</span>
+            <h3 style={{fontFamily:pf,fontSize:18,fontWeight:600,color:C.dk,marginTop:8}}>Week {week} grocery list locked</h3>
+            <p style={{fontFamily:dm,fontSize:13,color:C.mt,marginTop:4,lineHeight:1.5,maxWidth:280,marginLeft:"auto",marginRight:"auto"}}>Generate Week {week} to unlock its complete grocery list.</p>
+            <Btn onClick={()=>generateWeek(week)} style={{marginTop:14,opacity:weekGenerating?0.6:1,cursor:weekGenerating?"not-allowed":"pointer"}} disabled={!!weekGenerating}>
+              {weekGenerating === week ? "Generating..." : weekGenerating ? "Please wait..." : `Generate Week ${week} →`}
+            </Btn>
+          </div>}
+          {!isCurrentWeekLocked && (plan.grocery_list||[]).map((g,i)=><div key={i} style={{marginBottom:12}}><h4 style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk,marginBottom:5}}>{g.category}</h4><div style={{background:C.wh,borderRadius:11,boxShadow:"0 1px 6px rgba(0,0,0,.03)"}}>{(g.items||[]).map((item,j)=><div key={j} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 12px",borderBottom:j<g.items.length-1?`1px solid ${C.bgW}`:"none"}}><div style={{width:16,height:16,borderRadius:4,border:`2px solid ${C.peachL}`,flexShrink:0}}/><span style={{fontFamily:dm,fontSize:12,color:C.dk}}>{item}</span></div>)}</div></div>)}
+        </>}
       </div>
     </>}
 
@@ -944,14 +1191,15 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
       </div>
       <div style={{background:C.wh,borderRadius:13,padding:14,boxShadow:"0 1px 8px rgba(0,0,0,.03)",marginBottom:10}}>
         <h4 style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk,marginBottom:8}}>Current Plan</h4>
-        {[["Goal",answers.goal],["Diet",answers.diet],["Fitness",answers.fitness],["Cook Time",answers.time],["Focus",(answers.focus||[]).join(", ")]].map(([l,v],i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:i<4?`1px solid ${C.bgW}`:"none"}}><span style={{fontFamily:dm,fontSize:12,color:C.mtL}}>{l}</span><span style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk,textAlign:"right",maxWidth:"55%"}}>{v||"—"}</span></div>)}
+        {[["Goal",answers.goal],["Diet",dietToString(answers.diet)],["Fitness",answers.fitness],["Cook Time",answers.time],["Focus",(answers.focus||[]).join(", ")]].map(([l,v],i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:i<4?`1px solid ${C.bgW}`:"none"}}><span style={{fontFamily:dm,fontSize:12,color:C.mtL}}>{l}</span><span style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk,textAlign:"right",maxWidth:"55%"}}>{v||"—"}</span></div>)}
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:7}}>
         <button onClick={onRegen} style={{width:"100%",background:C.wh,border:`2px solid ${C.coral}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>🔄</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.coral}}>Generate New Plan {!isPaid&&<span style={{fontFamily:dm,fontSize:11,color:C.mtL,fontWeight:400}}>({genCount}/{MAX_FREE_GENS} used)</span>}</div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>{isPaid?"Unlimited regenerations":"Retake quiz with new preferences"}</div></div></button>
         {!isPaid&&<button onClick={onUpgrade} style={{width:"100%",background:`linear-gradient(135deg,${C.coral},${C.coralL})`,border:"none",borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>⚡</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:"#fff"}}>Upgrade to Premium — $9.99 USD</div><div style={{fontFamily:dm,fontSize:10,color:"#ffffffaa"}}>Unlimited plans + 28-day program</div></div></button>}
         <button onClick={()=>window.open(INSTAGRAM_LINK,"_blank")} style={{width:"100%",background:C.wh,border:`2px solid ${C.peachL}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>📸</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Follow @fitwithhiral</div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>Tips, recipes & wellness on Instagram</div></div></button>
-        <button onClick={onReset} style={{width:"100%",background:C.wh,border:`2px solid ${C.peachL}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>🏠</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Back to Home</div></div></button>
+        <button onClick={()=>setBtab("home")} style={{width:"100%",background:C.wh,border:`2px solid ${C.peachL}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>🏠</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Back to Home</div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>Return to your dashboard</div></div></button>
         <button onClick={()=>window.open("https://www.etsy.com/shop/FitWithHiral","_blank")} style={{width:"100%",background:C.wh,border:`2px solid ${C.peachL}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>🛍️</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Visit Etsy Shop</div></div></button>
+        <button onClick={onReset} style={{width:"100%",background:"none",border:`1px solid ${C.peachL}`,borderRadius:12,padding:"10px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginTop:6}}><span style={{fontSize:14}}>🚪</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.mt}}>Log Out</div></div></button>
       </div>
       <p style={{fontFamily:dm,fontSize:10,color:C.mtL,textAlign:"center",marginTop:20}}>Nourish Her by FitWithHiral v1.0</p>
     </div>}
@@ -1071,7 +1319,7 @@ export default function App(){
                 plan: { meal_plan: p.meal_plan, workout_plan: p.workout_plan, grocery_list: p.grocery_list },
                 answers: { goal: lead.goal, diet: lead.diet_type, fitness: lead.fitness_level, time: lead.cooking_time, focus: lead.focus_areas },
                 createdAt: p.created_at,
-                label: "Plan " + (i + 1) + ": " + (lead.goal || "Plan") + " (" + (lead.diet_type || "") + ")"
+                label: "Plan " + (i + 1) + ": " + (lead.goal || "Plan") + " (" + dietToString(lead.diet_type) + ")"
               }));
               setPlanHistory(history);
             }
@@ -1098,7 +1346,7 @@ export default function App(){
                 plan: { meal_plan: p.meal_plan, workout_plan: p.workout_plan, grocery_list: p.grocery_list },
                 answers: { goal: lead.goal, diet: lead.diet_type, fitness: lead.fitness_level, time: lead.cooking_time, focus: lead.focus_areas },
                 createdAt: p.created_at,
-                label: "Plan " + (i + 1) + ": " + (lead.goal || "Plan") + " (" + (lead.diet_type || "") + ")"
+                label: "Plan " + (i + 1) + ": " + (lead.goal || "Plan") + " (" + dietToString(lead.diet_type) + ")"
               }));
               setPlanHistory(history);
               // Check expiry for free users
@@ -1146,7 +1394,7 @@ export default function App(){
         plan: { meal_plan: p.meal_plan, workout_plan: p.workout_plan, grocery_list: p.grocery_list },
         answers: { goal: lead.goal, diet: lead.diet_type, fitness: lead.fitness_level, time: lead.cooking_time, focus: lead.focus_areas },
         createdAt: p.created_at,
-        label: "Plan " + (i + 1) + ": " + (lead.goal || "Plan") + " (" + (lead.diet_type || "") + ")"
+        label: "Plan " + (i + 1) + ": " + (lead.goal || "Plan") + " (" + dietToString(lead.diet_type) + ")"
       }));
       setPlanHistory(history);
       if (!lead.has_paid && ep.created_at) {
@@ -1175,21 +1423,22 @@ export default function App(){
     setPlanCreatedAt(now);
 
     // Start progress animation — slowly climb to 90% while AI works
-    // For 28-day plans (paid), progress moves slower to match the longer wait time
+    // Now even paid users only generate Week 1 first, so all generations are similar speed
     let p = 0;
     const iv = setInterval(() => {
-      // Slow down as we approach 90%; even slower for paid (28-day) plans
-      const speedMultiplier = isPaid ? 0.5 : 1;
-      const increment = (p < 50 ? 1.2 : p < 80 ? 0.6 : 0.3) * speedMultiplier;
+      // Steady climb — week 1 takes ~30sec for everyone now
+      const increment = p < 50 ? 1.2 : p < 80 ? 0.6 : 0.3;
       p += increment;
       setProgress(Math.min(p, 90));
       if (p >= 90) clearInterval(iv);
     }, 100);
 
-    // Try AI first — this is now the PRIMARY path
+    // Try AI first — for paid users, only generate Week 1 to keep it fast/reliable
+    // Weeks 2-4 will be generated on-demand later
     let result = null;
     try {
-      result = await aiGenerate(answers, isPaid);
+      const weekToGenerate = isPaid ? 1 : null; // Paid: just week 1; Free: 7 days
+      result = await aiGenerate(answers, isPaid, weekToGenerate);
     } catch(e) {
       console.warn("AI error:", e);
     }
@@ -1197,7 +1446,9 @@ export default function App(){
     // Fallback only if AI fails
     if (!result || !result.meal_plan || result.meal_plan.length === 0) {
       console.log("Using fallback plan");
-      result = makeFallback(answers, isPaid);
+      // For paid users, still only fallback for week 1 (so others can be generated later)
+      const fallbackResult = makeFallback(answers, false); // false = just 7 days
+      result = fallbackResult;
     } else {
       console.log("Using AI-generated plan with", result.meal_plan.length, "days");
     }
@@ -1211,7 +1462,7 @@ export default function App(){
         clearInterval(finishIv);
         setTimeout(() => {
           setPlan(result);
-          setPlanHistory(prev => [...prev, { plan: result, answers: { ...answers }, createdAt: now, label: "Plan " + (prev.length + 1) + ": " + answers.goal + " (" + answers.diet + ")" }]);
+          setPlanHistory(prev => [...prev, { plan: result, answers: { ...answers }, createdAt: now, label: "Plan " + (prev.length + 1) + ": " + answers.goal + " (" + dietToString(answers.diet) + ")" }]);
           if (user?.leadId) sbInsert("plans", { lead_id: user.leadId, meal_plan: result.meal_plan, workout_plan: result.workout_plan, grocery_list: result.grocery_list });
           setScreen("preview");
         }, 500);
@@ -1231,6 +1482,81 @@ export default function App(){
     if (h) { setPlan(h.plan); setAnswers(h.answers); }
   };
 
+  // Generate a specific week on-demand (Week 2, 3, or 4 for paid users)
+  const [weekGenerating, setWeekGenerating] = useState(null); // null or 1/2/3/4
+  const generateWeek = async (weekNum) => {
+    if (!isPaid || !plan || weekGenerating) return;
+    setWeekGenerating(weekNum);
+    console.log("🗓️ Generating Week " + weekNum + " on-demand...");
+
+    try {
+      const weekResult = await aiGenerate(answers, true, weekNum);
+      if (weekResult && weekResult.meal_plan) {
+        // Merge the new week into the existing plan
+        const updatedPlan = {
+          meal_plan: [...(plan.meal_plan || []), ...weekResult.meal_plan],
+          workout_plan: [...(plan.workout_plan || []), ...(weekResult.workout_plan || [])],
+          // Merge grocery lists (combine items per category)
+          grocery_list: mergeGroceryLists(plan.grocery_list || [], weekResult.grocery_list || [])
+        };
+        setPlan(updatedPlan);
+
+        // Update DB
+        if (user?.leadId) {
+          // Find the most recent plan in DB and update it
+          const allPlans = await sbFindAll("plans", "lead_id", user.leadId);
+          if (allPlans.length > 0) {
+            const latestPlanId = allPlans[0].id;
+            await sbUpdate("plans", latestPlanId, {
+              meal_plan: updatedPlan.meal_plan,
+              workout_plan: updatedPlan.workout_plan,
+              grocery_list: updatedPlan.grocery_list
+            });
+          }
+        }
+        console.log("✅ Week " + weekNum + " added!");
+      } else {
+        console.warn("⚠️ Week " + weekNum + " generation failed");
+        alert("Couldn't generate Week " + weekNum + " right now. Please try again in a moment.");
+      }
+    } catch(e) {
+      console.warn("Week generation error:", e);
+      alert("Couldn't generate Week " + weekNum + " right now. Please try again in a moment.");
+    } finally {
+      setWeekGenerating(null);
+    }
+  };
+
+  // Delete a saved plan
+  const deletePlan = async (planIdx) => {
+    const h = planHistory[planIdx];
+    if (!h || !user?.leadId) return;
+    if (!confirm("Delete this saved plan? This can't be undone.")) return;
+
+    try {
+      // Find and delete from DB by created_at match
+      const allPlans = await sbFindAll("plans", "lead_id", user.leadId);
+      const dbPlan = allPlans.find(p => p.created_at === h.createdAt);
+      if (dbPlan) {
+        await fetch(`${SB_URL}/rest/v1/plans?id=eq.${dbPlan.id}`, { method:"DELETE", headers:sbHeaders });
+      }
+      // Update UI
+      const newHistory = planHistory.filter((_, i) => i !== planIdx);
+      setPlanHistory(newHistory);
+      // If we deleted the current plan, switch to most recent
+      if (newHistory.length > 0) {
+        const mostRecent = newHistory[newHistory.length - 1];
+        setPlan(mostRecent.plan);
+        setAnswers(mostRecent.answers);
+      } else {
+        setPlan(null);
+      }
+    } catch(e) {
+      console.warn("Delete failed:", e);
+      alert("Couldn't delete the plan. Try again.");
+    }
+  };
+
   const onUpgrade = () => {
     // Save session before leaving so we can restore after Stripe redirect
     if (user) saveSession({ email: user.email, name: user.name, leadId: user.leadId, isPaid: false });
@@ -1240,6 +1566,11 @@ export default function App(){
   const reset = () => {
     clearSession();
     setScreen("welcome"); setStep(0); setAnswers({}); setUser(null); setPlan(null); setProgress(0); setGenCount(0); setIsPaid(false); setPlanHistory([]); setExpired(false);
+  };
+
+  // "Back to Home" from settings — keeps user logged in, goes to home tab
+  const backToHome = () => {
+    setScreen("dashboard");
   };
 
   const signupDifferent = () => {
@@ -1265,7 +1596,7 @@ export default function App(){
     {screen === "preview" && <PreviewScreen plan={plan} answers={answers} user={user} isPaid={isPaid} onUnlock={() => setScreen("dashboard")} />}
     {screen === "payment-success" && <PaymentSuccessScreen user={user} onContinue={() => setScreen("dashboard")} />}
     {screen === "limit" && <LimitScreen genCount={genCount} onUpgrade={onUpgrade} onHome={reset} expired={expired} user={user} onSignupDifferent={signupDifferent} />}
-    {screen === "dashboard" && <DashScreen plan={plan} answers={answers} user={user} onRegen={onRegen} onReset={reset} isPaid={isPaid} genCount={genCount} onUpgrade={onUpgrade} planHistory={planHistory} switchPlan={switchPlan} planCreatedAt={planCreatedAt} />}
+    {screen === "dashboard" && <DashScreen plan={plan} answers={answers} user={user} onRegen={onRegen} onReset={reset} isPaid={isPaid} genCount={genCount} onUpgrade={onUpgrade} planHistory={planHistory} switchPlan={switchPlan} planCreatedAt={planCreatedAt} generateWeek={generateWeek} weekGenerating={weekGenerating} deletePlan={deletePlan} />}
     {showA2HS && screen === "dashboard" && <AddToHomePrompt onDismiss={() => setShowA2HS(false)} />}
   </div>;
 }
