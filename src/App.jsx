@@ -102,33 +102,37 @@ async function aiGenerate(answers, isPaid = false, weekOnly = null) {
 
   const dietArr = dietToArray(answers.diet);
   const dietStr = dietArr.length > 0 ? dietArr.join(" AND ") : "balanced";
+  const dietDefs = {
+    "Vegan": "no animal products",
+    "Lacto-Vegetarian": "dairy ok, no eggs/meat/fish",
+    "Lacto-Ovo Vegetarian": "dairy + eggs ok, no meat/fish",
+    "Eggetarian": "veg + eggs only",
+    "Jain": "strict veg, no root veg (onion/garlic/potato), no eggs",
+    "Pescatarian": "veg + fish only",
+    "Pollotarian": "chicken only, no red meat/fish",
+    "Non-Vegetarian": "all proteins ok"
+  };
   const dietRules = dietArr.length > 0
-    ? `Diet MUST respect ALL of: ${dietArr.join(" AND ")}. Use the strictest interpretation. Examples:
-       - Vegan = no animal products at all
-       - Vegetarian variants = no meat or fish
-       - Eggetarian = vegetarian + eggs only (no meat/fish)
-       - Jain = strict veg, no root vegetables (onion/garlic/potato/carrot/ginger), no eggs
-       - Pescatarian = vegetarian + fish/seafood only
-       - Pollotarian = chicken only, no red meat, no fish`
-    : "Balanced diet with variety";
+    ? `MUST respect: ${dietArr.map(d => `${d} (${dietDefs[d] || "as named"})`).join(" + ")}. Strictest interpretation.`
+    : "Balanced diet";
 
   const p = `Create a personalized ${planLabel} meal + workout plan. Return ONLY valid JSON, no markdown.
 
 USER: ${answers.goal} goal, ${dietStr}, ${answers.fitness} fitness, ${answers.time} cook time, focus: ${(answers.focus||[]).join(", ") || "general"}
 WORKOUT: ${workoutGuidance[answers.goal] || "Balanced mix of strength, cardio, recovery."}
-CUISINE PREFERENCES: ${cuisineStr}. ${cuisines.length > 0 ? `Mix dishes from these cuisines across the days. Examples — Gujarati: dhokla, thepla, undhiyu, dal dhokli, handvo. Italian: pasta primavera, risotto, minestrone. Mexican: bean bowls, tacos, fajitas. Chinese: stir-fry, fried rice, dumplings. Mediterranean: hummus bowls, Greek salad, falafel. Indian South: dosa, idli, sambar, uttapam. Indian North: dal makhani, paneer butter masala, biryani. Thai/Vietnamese: pho, pad thai, larb. American: protein bowls, burgers, BBQ. Use authentic spices and ingredients for each cuisine.` : "Use varied global cuisines."}
+CUISINES: ${cuisineStr}. Mix authentic dishes from these cuisines.
 
 DIET RULES: ${dietRules}
 
 OTHER RULES:
 - ${totalDays} unique days (NO meal repeats across days)
 - 4 meals/day: Breakfast, Lunch, Snack, Dinner
-- 3-5 ingredients PER RECIPE — EVERY ingredient MUST start with a quantity. Examples: "200g paneer cubes", "1 cup chopped spinach", "2 tbsp olive oil", "1/2 onion diced", "3 medium tomatoes". NEVER write just "paneer" or "spinach" — ALWAYS include amount with unit (g/cup/tbsp/tsp/piece/medium/large)
+- 3-5 ingredients per recipe, EVERY one starts with quantity (e.g. "200g paneer", "1 cup spinach", "2 tbsp oil") — never just "paneer"
 - 3 brief instructions per recipe (keep concise)
 - High protein (25-40g per main meal)
 - Calorie totals must match the ingredients listed
 - Workouts: ${answers.fitness} level, 1-2 rest/recovery days per week
-- EVERY exercise MUST include a "modification" field with a safer/easier alternative for joint issues, beginners, or heavier users (e.g. "Do this seated in a chair", "Use wall support", "Skip the jump and step instead", "Reduce range of motion")
+- Each exercise MUST include "modification" field with a safer easier version (1 short sentence)
 
 JSON FORMAT:
 {
@@ -158,7 +162,7 @@ The grocery_list must reflect ALL ingredients used across ALL ${totalDays} days 
   try {
     console.log("📡 Calling Anthropic API...");
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60-second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 120-second timeout
 
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -170,7 +174,7 @@ The grocery_list must reflect ALL ingredients used across ALL ${totalDays} days 
         "anthropic-dangerous-direct-browser-access": "true"
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: weekOnly ? 8000 : (isPaid ? 16000 : 8000),
         messages: [{ role: "user", content: p }]
       })
@@ -203,8 +207,10 @@ The grocery_list must reflect ALL ingredients used across ALL ${totalDays} days 
     }
 
     console.log("📊 Parsed plan has", parsed?.meal_plan?.length, "days (wanted", totalDays + ")");
-    if (parsed && parsed.meal_plan && parsed.meal_plan.length >= totalDays) {
-      console.log("🎉 AI plan SUCCESS!");
+    // Lenient validation — accept partial responses if reasonable
+    const minAcceptableDays = totalDays >= 7 ? Math.max(5, totalDays - 2) : Math.max(2, totalDays - 1);
+    if (parsed && parsed.meal_plan && parsed.meal_plan.length >= minAcceptableDays) {
+      console.log("🎉 AI plan SUCCESS! Got", parsed.meal_plan.length, "days (wanted", totalDays + ")");
       return parsed;
     }
     console.warn("⚠️ AI plan has fewer days than requested");
@@ -1469,11 +1475,11 @@ export default function App(){
     setPlanCreatedAt(now);
 
     // Start progress animation — slowly climb to 90% while AI works
-    // Now even paid users only generate Week 1 first, so all generations are similar speed
+    // Slow progress climb that matches realistic 60-120s generation window
+    // 0->50 in 30s, 50->80 in 30s, 80->90 in 30s = ~90s to reach 90%
     let p = 0;
     const iv = setInterval(() => {
-      // Steady climb — week 1 takes ~30sec for everyone now
-      const increment = p < 50 ? 1.2 : p < 80 ? 0.6 : 0.3;
+      const increment = p < 50 ? 0.4 : p < 80 ? 0.2 : 0.1;
       p += increment;
       setProgress(Math.min(p, 90));
       if (p >= 90) clearInterval(iv);
