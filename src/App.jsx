@@ -5,8 +5,10 @@ const SB_URL = "https://fimsmaafruzbpoibepua.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZpbXNtYWFmcnV6YnBvaWJlcHVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNTcyNDUsImV4cCI6MjA5MTgzMzI0NX0.K6RZY9nb8NEcB9yFP4KJXlHyamXa5pFuPA-cmfbnQbI";
 const STRIPE_LINK = "https://buy.stripe.com/bJe3cvaiy2atd6LfZv38402";
 const INSTAGRAM_LINK = "https://www.instagram.com/fitwithhiral/";
-const MAX_FREE_GENS = 10;
+const MAX_FREE_GENS = 3;
+const MAX_PAID_GENS = 10;
 const FREE_ACCESS_DAYS = 7;
+const PAID_ACCESS_DAYS = 28;
 
 // ─── THEME ───
 const C = { bg:"#FFF9F5", bgW:"#FFF0E8", coral:"#E8735A", coralL:"#F09880", peach:"#F4A77A", peachL:"#FBDCC8", blush:"#FFE4D6", rose:"#C4687A", gold:"#D4A057", dk:"#1A1A1A", mt:"#6B5E5A", mtL:"#9B8E8A", wh:"#FFFFFF", gr:"#7CB88A", grL:"#E8F5EC", bl:"#5BA4CF" };
@@ -752,7 +754,7 @@ function LoadingScreen({progress, isPaid}){
   }, []);
 
   const card = LOADING_CARDS[cardIdx];
-  const timeEstimate = "1-3 minutes";
+  const timeEstimate = "4-5 minutes";
 
   return <div style={{minHeight:"100vh",background:`linear-gradient(170deg,${C.bg},${C.bgW})`,display:"flex",flexDirection:"column",alignItems:"center",padding:24,paddingTop:40}}>
 
@@ -840,7 +842,7 @@ function PreviewScreen({plan,answers,user,isPaid,onUnlock}){
       {!isPaid && <Fi delay={500}><div style={{background:C.wh,borderRadius:16,padding:18,border:`2px solid ${C.coral}18`,boxShadow:`0 3px 16px ${C.coral}06`,marginBottom:16,position:"relative",overflow:"hidden"}}>
         <div style={{position:"absolute",top:0,right:0,background:C.coral,color:"#fff",fontFamily:dm,fontSize:8,fontWeight:700,padding:"3px 10px",borderBottomLeftRadius:8,letterSpacing:".04em"}}>MOST POPULAR</div>
         <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8,marginTop:4}}><span style={{fontSize:18}}>⚡</span><h3 style={{fontFamily:pf,fontSize:16,fontWeight:600,color:C.dk}}>Want the full 28-day plan?</h3></div>
-        {["4 weeks of unique meal plans","Progressive workout program","Complete monthly grocery lists","Unlimited plan regenerations","Switch between saved plans"].map((f,i)=><div key={i} style={{display:"flex",gap:6,alignItems:"center",padding:"3px 0"}}><span style={{color:C.gr,fontSize:12}}>✓</span><span style={{fontFamily:dm,fontSize:12,color:C.mt}}>{f}</span></div>)}
+        {["4 weeks of unique meal plans","Progressive workout program","Complete weekly grocery lists","10 plan generations","Switch between saved plans","📄 Download your plan as PDF"].map((f,i)=><div key={i} style={{display:"flex",gap:6,alignItems:"center",padding:"3px 0"}}><span style={{color:C.gr,fontSize:12}}>✓</span><span style={{fontFamily:dm,fontSize:12,color:C.mt}}>{f}</span></div>)}
         <div style={{display:"flex",alignItems:"baseline",gap:6,margin:"12px 0"}}><span style={{fontFamily:dm,fontSize:13,color:C.mtL,textDecoration:"line-through"}}>$29.99 USD</span><span style={{fontFamily:pf,fontSize:28,fontWeight:700,color:C.coral}}>$9.99</span><span style={{fontFamily:dm,fontSize:11,color:C.mtL}}>USD • one-time</span></div>
         <Btn full onClick={()=>window.open(STRIPE_LINK,"_blank")} style={{animation:"glow 2s ease infinite"}}>Unlock 28-Day Plan — $9.99 USD</Btn>
         <div style={{display:"flex",justifyContent:"center",marginTop:8}}><SocialProof/></div>
@@ -887,7 +889,7 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
       <div onClick={()=>setBtab("home")} style={{cursor:"pointer"}}><Logo s="sm"/></div>
       <div style={{display:"flex",alignItems:"center",gap:6}}>
         {isPaid
-          ? <span style={{background:`${C.coral}12`,borderRadius:14,padding:"3px 9px",fontFamily:dm,fontSize:9,fontWeight:600,color:C.coral,animation:"fadeScale 0.3s ease"}}>⭐ Premium • 28-Day Plan</span>
+          ? <span style={{background:`${C.coral}12`,borderRadius:14,padding:"3px 9px",fontFamily:dm,fontSize:9,fontWeight:600,color:C.coral,animation:"fadeScale 0.3s ease"}}>⭐ Premium • {planCreatedAt ? Math.max(0, PAID_ACCESS_DAYS - Math.floor((new Date()-new Date(planCreatedAt))/(1000*60*60*24))) : PAID_ACCESS_DAYS} days left</span>
           : <span style={{background:C.grL,borderRadius:14,padding:"3px 9px",fontFamily:dm,fontSize:9,fontWeight:600,color:C.gr}}>Free • {planCreatedAt ? Math.max(0, FREE_ACCESS_DAYS - Math.floor((new Date()-new Date(planCreatedAt))/(1000*60*60*24))) : FREE_ACCESS_DAYS} days left</span>
         }
         <div onClick={()=>setBtab("home")} style={{width:28,height:28,borderRadius:"50%",background:`linear-gradient(135deg,${C.coral},${C.peach})`,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontFamily:dm,fontSize:11,fontWeight:700,cursor:"pointer",boxShadow:btab==="home"?`0 0 0 2px ${C.wh},0 0 0 4px ${C.coral}`:"none",transition:"all 0.2s ease"}}>{user?.name?.[0]?.toUpperCase()||"U"}</div>
@@ -932,7 +934,7 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
         <button onClick={onRegen} style={{background:C.wh,border:`1px solid ${C.peachL}`,borderRadius:12,padding:"12px 10px",cursor:"pointer",textAlign:"left",transition:"all 0.2s ease"}}>
           <span style={{fontSize:20}}>🔄</span>
           <div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk,marginTop:4}}>New Plan</div>
-          <div style={{fontFamily:dm,fontSize:9,color:C.mtL}}>{isPaid?"Unlimited":`${genCount}/${MAX_FREE_GENS} used`}</div>
+          <div style={{fontFamily:dm,fontSize:9,color:C.mtL}}>{isPaid?`${genCount}/${MAX_PAID_GENS} used`:`${genCount}/${MAX_FREE_GENS} used`}</div>
         </button>
       </div>
 
@@ -981,7 +983,7 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
         <div style={{position:"absolute",top:0,right:0,background:C.coral,color:"#fff",fontFamily:dm,fontSize:8,fontWeight:700,padding:"3px 10px",borderBottomLeftRadius:8,letterSpacing:".04em"}}>MOST POPULAR</div>
         <div style={{marginTop:6}}>
           <div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>⚡ Unlock Full 28-Day Plan</div>
-          <div style={{fontFamily:dm,fontSize:11,color:C.mtL,marginTop:2}}>Unlimited regens • Full month of meals • Complete grocery lists</div>
+          <div style={{fontFamily:dm,fontSize:11,color:C.mtL,marginTop:2}}>10 plan gens • Full month of meals • PDF download</div>
           <div style={{display:"flex",alignItems:"baseline",gap:6,margin:"8px 0"}}>
             <span style={{fontFamily:pf,fontSize:24,fontWeight:700,color:C.coral}}>$9.99</span>
             <span style={{fontFamily:dm,fontSize:11,color:C.mtL,textDecoration:"line-through"}}>$29.99</span>
@@ -1056,7 +1058,7 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
           {isCurrentWeekLocked && <div style={{background:`linear-gradient(135deg,${C.peachL}40,${C.blush}60)`,borderRadius:16,padding:24,marginTop:16,textAlign:"center",border:`1px solid ${C.coral}25`,animation:"fadeScale 0.4s ease"}}>
             <span style={{fontSize:36}}>🔒</span>
             <h3 style={{fontFamily:pf,fontSize:18,fontWeight:600,color:C.dk,marginTop:8}}>Week {week} is locked</h3>
-            <p style={{fontFamily:dm,fontSize:13,color:C.mt,marginTop:4,lineHeight:1.5,maxWidth:280,marginLeft:"auto",marginRight:"auto"}}>Generate Week {week} on-demand. Takes about 1-2 minutes and includes 7 unique meals + workouts.</p>
+            <p style={{fontFamily:dm,fontSize:13,color:C.mt,marginTop:4,lineHeight:1.5,maxWidth:280,marginLeft:"auto",marginRight:"auto"}}>Generate Week {week} on-demand. Takes about 4-5 minutes and includes 7 unique meals + workouts.</p>
             <Btn onClick={()=>generateWeek(week)} style={{marginTop:14,opacity:weekGenerating?0.6:1,cursor:weekGenerating?"not-allowed":"pointer"}} disabled={!!weekGenerating}>
               {weekGenerating === week ? "Generating..." : weekGenerating ? "Please wait..." : `Generate Week ${week} →`}
             </Btn>
@@ -1323,8 +1325,8 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
         {[["Goal",answers.goal],["Diet",dietToString(answers.diet)],["Fitness",answers.fitness],["Cook Time",answers.time],["Focus",(answers.focus||[]).join(", ")]].map(([l,v],i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:i<4?`1px solid ${C.bgW}`:"none"}}><span style={{fontFamily:dm,fontSize:12,color:C.mtL}}>{l}</span><span style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk,textAlign:"right",maxWidth:"55%"}}>{v||"—"}</span></div>)}
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:7}}>
-        <button onClick={onRegen} style={{width:"100%",background:C.wh,border:`2px solid ${C.coral}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>🔄</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.coral}}>Generate New Plan {!isPaid&&<span style={{fontFamily:dm,fontSize:11,color:C.mtL,fontWeight:400}}>({genCount}/{MAX_FREE_GENS} used)</span>}</div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>{isPaid?"Unlimited regenerations":"Retake quiz with new preferences"}</div></div></button>
-        {!isPaid&&<button onClick={onUpgrade} style={{width:"100%",background:`linear-gradient(135deg,${C.coral},${C.coralL})`,border:"none",borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>⚡</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:"#fff"}}>Upgrade to Premium — $9.99 USD</div><div style={{fontFamily:dm,fontSize:10,color:"#ffffffaa"}}>Unlimited plans + 28-day program</div></div></button>}
+        <button onClick={onRegen} style={{width:"100%",background:C.wh,border:`2px solid ${C.coral}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>🔄</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.coral}}>Generate New Plan <span style={{fontFamily:dm,fontSize:11,color:C.mtL,fontWeight:400}}>({genCount}/{isPaid?MAX_PAID_GENS:MAX_FREE_GENS} used)</span></div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>{isPaid?"Premium plan generations":"Retake quiz with new preferences"}</div></div></button>
+        {!isPaid&&<button onClick={onUpgrade} style={{width:"100%",background:`linear-gradient(135deg,${C.coral},${C.coralL})`,border:"none",borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>⚡</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:"#fff"}}>Upgrade to Premium — $9.99 USD</div><div style={{fontFamily:dm,fontSize:10,color:"#ffffffaa"}}>28-day plan + 10 gens + PDF download</div></div></button>}
         <button onClick={()=>window.open(INSTAGRAM_LINK,"_blank")} style={{width:"100%",background:C.wh,border:`2px solid ${C.peachL}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>📸</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Follow @fitwithhiral</div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>Tips, recipes & wellness on Instagram</div></div></button>
         <button onClick={()=>setBtab("home")} style={{width:"100%",background:C.wh,border:`2px solid ${C.peachL}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>🏠</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Back to Home</div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>Return to your dashboard</div></div></button>
         <button onClick={()=>window.open("https://www.etsy.com/shop/FitWithHiral","_blank")} style={{width:"100%",background:C.wh,border:`2px solid ${C.peachL}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>🛍️</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Visit Etsy Shop</div></div></button>
@@ -1349,7 +1351,7 @@ function LimitScreen({genCount, onUpgrade, onHome, expired, user, onSignupDiffer
     <Fi delay={400}><div style={{background:C.wh,borderRadius:16,padding:18,marginTop:20,width:"100%",maxWidth:340,position:"relative",overflow:"hidden"}}>
       <div style={{position:"absolute",top:0,right:0,background:C.coral,color:"#fff",fontFamily:dm,fontSize:8,fontWeight:700,padding:"3px 10px",borderBottomLeftRadius:8,letterSpacing:".04em"}}>MOST POPULAR</div>
       <div style={{marginTop:4}}>
-        {["Unlimited plan regenerations","Full 28-day meal + workout plan","Complete grocery lists","Progress tracking dashboard","Switch between saved plans","Keep your existing data"].map((f,i) => <div key={i} style={{display:"flex",gap:8,alignItems:"center",padding:"5px 0"}}><span style={{color:C.gr,fontSize:13}}>✓</span><span style={{fontFamily:dm,fontSize:13,color:C.mt}}>{f}</span></div>)}
+        {["10 plan generations","Full 28-day meal + workout plan","Complete weekly grocery lists","Progress tracking dashboard","Switch between saved plans","📄 Download your plan as PDF","Keep your existing data"].map((f,i) => <div key={i} style={{display:"flex",gap:8,alignItems:"center",padding:"5px 0"}}><span style={{color:C.gr,fontSize:13}}>✓</span><span style={{fontFamily:dm,fontSize:13,color:C.mt}}>{f}</span></div>)}
         <div style={{display:"flex",alignItems:"baseline",gap:6,margin:"14px 0 4px"}}><span style={{fontFamily:dm,fontSize:13,color:C.mtL,textDecoration:"line-through"}}>$29.99 USD</span><span style={{fontFamily:pf,fontSize:30,fontWeight:700,color:C.coral}}>$9.99</span><span style={{fontFamily:dm,fontSize:11,color:C.mtL}}>USD • one-time</span></div>
         <Btn full onClick={onUpgrade} style={{marginTop:10,animation:"glow 2s ease infinite"}}>Upgrade Now — $9.99 USD</Btn>
         <p style={{fontFamily:dm,fontSize:10,color:C.mtL,textAlign:"center",marginTop:6}}>🔒 Secure payment via Stripe</p>
@@ -1381,7 +1383,7 @@ function PaymentSuccessScreen({user, onContinue}) {
     <Fi delay={250}><h2 style={{fontFamily:pf,fontSize:26,fontWeight:600,color:C.dk,textAlign:"center"}}>Payment Successful!</h2></Fi>
     <Fi delay={350}><p style={{fontFamily:dm,fontSize:15,color:C.mt,textAlign:"center",maxWidth:320,lineHeight:1.6,marginTop:8}}>Welcome to Premium, {user?.name || "there"}! Your full 28-day plan with unlimited regenerations is now unlocked.</p></Fi>
     <Fi delay={500}><div style={{background:C.wh,borderRadius:16,padding:18,marginTop:20,width:"100%",maxWidth:340}}>
-      {["✅ Full 28-day meal + workout plan","✅ Unlimited plan regenerations","✅ Complete grocery lists","✅ Progress tracking dashboard","✅ Switch between saved plans"].map((f,i) => <div key={i} style={{padding:"6px 0"}}><span style={{fontFamily:dm,fontSize:14,color:C.dk}}>{f}</span></div>)}
+      {["✅ Full 28-day meal + workout plan","✅ 10 plan generations","✅ Complete weekly grocery lists","✅ Progress tracking dashboard","✅ Switch between saved plans","✅ 📄 Download your plan as PDF"].map((f,i) => <div key={i} style={{padding:"6px 0"}}><span style={{fontFamily:dm,fontSize:14,color:C.dk}}>{f}</span></div>)}
     </div></Fi>
     <Fi delay={650}><Btn onClick={onContinue} style={{marginTop:20,animation:"glow 2s ease infinite"}}>Go to My Dashboard →</Btn></Fi>
     <Fi delay={750}><p style={{fontFamily:dm,fontSize:11,color:C.mtL,marginTop:12}}>A confirmation email has been sent to your inbox.</p></Fi>
@@ -1479,10 +1481,11 @@ export default function App(){
                 label: "Plan " + (i + 1) + ": " + (lead.goal || "Plan") + " (" + dietToString(lead.diet_type) + ")"
               }));
               setPlanHistory(history);
-              // Check expiry for free users
-              if (!lead.has_paid && ep.created_at) {
+              // Check expiry: 7 days free, 28 days paid
+              if (ep.created_at) {
                 const daysPassed = Math.floor((new Date() - new Date(ep.created_at)) / (86400000));
-                if (daysPassed >= FREE_ACCESS_DAYS) { setExpired(true); setScreen("limit"); return; }
+                const limit = lead.has_paid ? PAID_ACCESS_DAYS : FREE_ACCESS_DAYS;
+                if (daysPassed >= limit) { setExpired(true); setScreen("limit"); return; }
               }
               setScreen("dashboard");
             } else {
@@ -1495,11 +1498,12 @@ export default function App(){
     init();
   }, []);
 
-  // Check 7-day expiry for free users
+  // Check expiry: 7 days for free, 28 days for paid
   useEffect(()=>{
-    if(!isPaid && planCreatedAt){
+    if(planCreatedAt){
       const daysPassed = Math.floor((Date.now() - new Date(planCreatedAt).getTime()) / (86400000));
-      if(daysPassed >= FREE_ACCESS_DAYS) setExpired(true);
+      const limit = isPaid ? PAID_ACCESS_DAYS : FREE_ACCESS_DAYS;
+      if(daysPassed >= limit) setExpired(true);
     }
   },[isPaid, planCreatedAt]);
 
@@ -1527,9 +1531,10 @@ export default function App(){
         label: "Plan " + (i + 1) + ": " + (lead.goal || "Plan") + " (" + dietToString(lead.diet_type) + ")"
       }));
       setPlanHistory(history);
-      if (!lead.has_paid && ep.created_at) {
+      if (ep.created_at) {
         const daysPassed = Math.floor((new Date() - new Date(ep.created_at)) / (86400000));
-        if (daysPassed >= FREE_ACCESS_DAYS) { setExpired(true); setScreen("limit"); return; }
+        const limit = lead.has_paid ? PAID_ACCESS_DAYS : FREE_ACCESS_DAYS;
+        if (daysPassed >= limit) { setExpired(true); setScreen("limit"); return; }
       }
       setScreen("dashboard");
     } else { setScreen("quiz"); }
@@ -1624,6 +1629,10 @@ export default function App(){
 
   const onRegen = () => {
     if (!isPaid && genCount >= MAX_FREE_GENS) { setScreen("limit"); return; }
+    if (isPaid && genCount >= MAX_PAID_GENS) {
+      alert("You've used all 10 plan generations for this 28-day cycle. You can still view your existing plans! When your access expires, unlock again to get 10 more generations.");
+      return;
+    }
     setStep(0); setPlan(null); setProgress(0); setScreen("quiz");
   };
 
