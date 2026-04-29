@@ -861,7 +861,7 @@ function PreviewScreen({plan,answers,user,isPaid,onUnlock}){
   </div>;
 }
 
-function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade,planHistory,switchPlan,planCreatedAt,generateWeek,weekGenerating,deletePlan,onClearOldPlans}){
+function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade,planHistory,switchPlan,planCreatedAt,generateWeek,weekGenerating,deletePlan,onClearOldPlans,generatePDF}){
   const[tab,setTab]=useState("meals");const[day,setDay]=useState(0);const[exp,setExp]=useState(null);const[chk,setChk]=useState({});const[water,setWater]=useState(3);const[mood,setMood]=useState(null);const[btab,setBtab]=useState("home");const[libExp,setLibExp]=useState(null);const[week,setWeek]=useState(1);const[planSelOpen,setPlanSelOpen]=useState(false);const[currentPlanIdx,setCurrentPlanIdx]=useState(planHistory.length>0?planHistory.length-1:0);const[showAllPlans,setShowAllPlans]=useState(false);
   if(!plan?.meal_plan) return <div style={{padding:40,textAlign:"center",fontFamily:dm}}>Loading...</div>;
   const totalPlanDays = plan.meal_plan.length;
@@ -1004,6 +1004,9 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
             <h2 style={{fontFamily:pf,fontSize:20,fontWeight:600,color:C.dk,animation:"slideUp 0.4s ease"}}>Your Plan</h2>
             <p style={{fontFamily:dm,fontSize:12,color:C.mt,marginTop:1}}>Your {dietToString(answers.diet)} plan for <b>{answers.goal}</b></p>
           </div>
+          {isPaid && <button onClick={generatePDF} style={{background:`linear-gradient(135deg,${C.coral},${C.peach})`,border:"none",borderRadius:10,padding:"7px 11px",cursor:"pointer",display:"flex",alignItems:"center",gap:4,fontFamily:dm,fontSize:11,fontWeight:600,color:"#fff",whiteSpace:"nowrap",boxShadow:`0 2px 8px ${C.coral}30`}}>
+            📄 PDF
+          </button>}
           {planHistory.length > 1 && <button onClick={()=>setPlanSelOpen(!planSelOpen)} style={{background:C.wh,border:`1px solid ${C.peachL}`,borderRadius:10,padding:"7px 11px",cursor:"pointer",display:"flex",alignItems:"center",gap:4,fontFamily:dm,fontSize:11,fontWeight:600,color:C.dk,whiteSpace:"nowrap"}}>
             📋 {planHistory.length} Saved
             <span style={{fontSize:9,marginLeft:2,transform:planSelOpen?"rotate(180deg)":"none",transition:"transform 0.2s"}}>▾</span>
@@ -1329,6 +1332,7 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
         {!isPaid&&<button onClick={onUpgrade} style={{width:"100%",background:`linear-gradient(135deg,${C.coral},${C.coralL})`,border:"none",borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>⚡</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:"#fff"}}>Upgrade to Premium — $9.99 USD</div><div style={{fontFamily:dm,fontSize:10,color:"#ffffffaa"}}>28-day plan + 10 gens + PDF download</div></div></button>}
         <button onClick={()=>window.open(INSTAGRAM_LINK,"_blank")} style={{width:"100%",background:C.wh,border:`2px solid ${C.peachL}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>📸</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Follow @fitwithhiral</div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>Tips, recipes & wellness on Instagram</div></div></button>
         <button onClick={()=>setBtab("home")} style={{width:"100%",background:C.wh,border:`2px solid ${C.peachL}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>🏠</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Back to Home</div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>Return to your dashboard</div></div></button>
+        {isPaid && <button onClick={generatePDF} style={{width:"100%",background:`linear-gradient(135deg,${C.coral}10,${C.peach}10)`,border:`2px solid ${C.coral}40`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>📄</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Download Plan as PDF</div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>Beautifully designed, printable</div></div></button>}
         <button onClick={()=>window.open("https://www.etsy.com/shop/FitWithHiral","_blank")} style={{width:"100%",background:C.wh,border:`2px solid ${C.peachL}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>🛍️</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Visit Etsy Shop</div></div></button>
         <button onClick={onReset} style={{width:"100%",background:"none",border:`1px solid ${C.peachL}`,borderRadius:12,padding:"10px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginTop:6}}><span style={{fontSize:14}}>🚪</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.mt}}>Log Out</div></div></button>
       </div>
@@ -1751,6 +1755,441 @@ export default function App(){
     window.open(STRIPE_LINK, "_blank");
   };
 
+  // Generate beautiful branded PDF — opens new window with formatted plan, triggers print dialog
+  // User can then "Save as PDF" from the browser print menu
+  const generatePDF = () => {
+    if (!plan?.meal_plan || !isPaid) return;
+
+    const userName = user?.name || "Beautiful";
+    const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    const dietStr = dietToString(answers.diet) || "Balanced";
+    const cuisineStr = (Array.isArray(answers.cuisine) ? answers.cuisine.join(", ") : answers.cuisine) || "Mixed";
+    const totalDays = plan.meal_plan.length;
+    const planType = totalDays >= 14 ? `${totalDays}-Day` : `${totalDays}-Day`;
+
+    // Build the meals HTML
+    const mealsHTML = plan.meal_plan.map((day, idx) => {
+      const dayNum = idx + 1;
+      const week = Math.ceil(dayNum / 7);
+      const totalCal = (day.meals || []).reduce((s, m) => s + (m.cal || 0), 0);
+      const mealsList = (day.meals || []).map(m => `
+        <div class="meal-card">
+          <div class="meal-header">
+            <span class="meal-emoji">${m.emoji || '🍽️'}</span>
+            <div class="meal-info">
+              <div class="meal-time">${m.time || 'Meal'}</div>
+              <div class="meal-name">${m.name || ''}</div>
+            </div>
+            <div class="meal-cal">${m.cal || 0} cal</div>
+          </div>
+          <div class="meal-macros">
+            <span>P: ${m.protein || '—'}</span>
+            <span>C: ${m.carbs || '—'}</span>
+            <span>F: ${m.fat || '—'}</span>
+            <span>⏱ ${m.prep_time || '—'}</span>
+          </div>
+          ${m.desc ? `<div class="meal-desc">${m.desc}</div>` : ''}
+          ${(m.ingredients||[]).length > 0 ? `
+            <div class="ingredients">
+              <div class="section-label">Ingredients</div>
+              <ul>${m.ingredients.map(i => `<li>${i}</li>`).join('')}</ul>
+            </div>` : ''}
+          ${(m.instructions||[]).length > 0 ? `
+            <div class="instructions">
+              <div class="section-label">Instructions</div>
+              <ol>${m.instructions.map(i => `<li>${i}</li>`).join('')}</ol>
+            </div>` : ''}
+        </div>
+      `).join('');
+
+      return `
+        <div class="day-section">
+          <div class="day-header">
+            <div>
+              <div class="day-num">Day ${dayNum} ${totalDays > 7 ? `· Week ${week}` : ''}</div>
+              <div class="day-title">${day.day || ''}</div>
+            </div>
+            <div class="day-cal">${totalCal} cal total</div>
+          </div>
+          ${mealsList}
+        </div>
+      `;
+    }).join('');
+
+    // Build workouts HTML
+    const workoutsHTML = (plan.workout_plan || []).map((w, idx) => {
+      const dayNum = idx + 1;
+      const week = Math.ceil(dayNum / 7);
+      const exercisesList = (w.exercises || []).map((ex, i) => {
+        const exObj = typeof ex === 'string' ? { name: ex } : ex;
+        return `
+          <div class="exercise-row">
+            <span class="ex-num">${i + 1}</span>
+            <div class="ex-info">
+              <div class="ex-name">${exObj.name || ''}</div>
+              ${exObj.modification ? `<div class="ex-mod">🪑 Easier: ${exObj.modification}</div>` : ''}
+            </div>
+            ${exObj.detail ? `<span class="ex-detail">${exObj.detail}</span>` : ''}
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="workout-card">
+          <div class="workout-header">
+            <span class="workout-icon">${w.icon || '💪'}</span>
+            <div>
+              <div class="workout-day">Day ${dayNum} ${totalDays > 7 ? `· Week ${week}` : ''}</div>
+              <div class="workout-name">${w.name || ''} · ${w.duration || ''}</div>
+            </div>
+          </div>
+          ${exercisesList}
+        </div>
+      `;
+    }).join('');
+
+    // Build grocery HTML
+    const groceryHTML = (plan.grocery_list || []).map(cat => `
+      <div class="grocery-cat">
+        <h3>${cat.category || ''}</h3>
+        <ul>${(cat.items || []).map(item => `<li>☐ ${item}</li>`).join('')}</ul>
+      </div>
+    `).join('');
+
+    // Full HTML document with cream/blush brand styling
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Nourish You — ${userName}'s ${planType} Plan</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: #FBF7F4;
+    color: #2D2A2E;
+    line-height: 1.6;
+    padding: 40px 50px;
+  }
+  h1, h2, h3 { font-family: 'Playfair Display', serif; color: #2D2A2E; }
+
+  /* Cover Page */
+  .cover {
+    min-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: linear-gradient(160deg, #FBF7F4, #FCE4DC, #F8D7C8);
+    border-radius: 20px;
+    padding: 80px 40px;
+    page-break-after: always;
+    position: relative;
+  }
+  .cover-logo {
+    width: 80px; height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #E8927C, #F2B8A2);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 24px;
+    box-shadow: 0 8px 30px rgba(232,146,124,0.3);
+  }
+  .cover-logo span { color: white; font-family: 'Playfair Display', serif; font-size: 40px; font-weight: 700; }
+  .cover h1 { font-size: 48px; margin-bottom: 8px; letter-spacing: 0.02em; }
+  .cover .brand { font-family: 'DM Sans'; color: #E8927C; font-size: 13px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 40px; }
+  .cover .tagline { font-family: 'Playfair Display', serif; font-style: italic; font-size: 22px; color: #5A5458; max-width: 500px; margin-bottom: 50px; }
+  .cover .name-card { background: white; padding: 30px 50px; border-radius: 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); margin-bottom: 30px; }
+  .cover .for-label { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: #948B90; margin-bottom: 8px; font-weight: 600; }
+  .cover .for-name { font-family: 'Playfair Display', serif; font-size: 32px; font-weight: 600; color: #2D2A2E; }
+  .cover .meta { display: flex; gap: 40px; justify-content: center; margin-top: 30px; }
+  .cover .meta-item { text-align: center; }
+  .cover .meta-label { font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #948B90; margin-bottom: 4px; font-weight: 600; }
+  .cover .meta-value { font-size: 13px; font-weight: 600; color: #2D2A2E; }
+  .cover .date { margin-top: 40px; font-size: 11px; color: #948B90; }
+
+  /* Section Headers */
+  .section-divider {
+    page-break-before: always;
+    text-align: center;
+    padding: 80px 0 40px;
+  }
+  .section-divider .section-emoji { font-size: 48px; margin-bottom: 16px; }
+  .section-divider h2 { font-size: 36px; margin-bottom: 8px; }
+  .section-divider .subtitle { font-size: 14px; color: #948B90; }
+
+  /* Day Section */
+  .day-section {
+    background: white;
+    border-radius: 14px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    page-break-inside: avoid;
+  }
+  .day-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 14px;
+    border-bottom: 2px solid #FCE4DC;
+    margin-bottom: 16px;
+  }
+  .day-num { font-size: 11px; color: #E8927C; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+  .day-title { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 600; margin-top: 2px; }
+  .day-cal { font-size: 12px; font-weight: 600; color: #5A5458; background: #FBF7F4; padding: 6px 12px; border-radius: 14px; }
+
+  /* Meal Card */
+  .meal-card {
+    background: #FBF7F4;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+    border-left: 3px solid #E8927C;
+  }
+  .meal-header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+  .meal-emoji { font-size: 28px; line-height: 1; }
+  .meal-info { flex: 1; }
+  .meal-time { font-size: 10px; font-weight: 700; color: #E8927C; letter-spacing: 0.1em; text-transform: uppercase; }
+  .meal-name { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 600; margin-top: 2px; }
+  .meal-cal { font-size: 12px; font-weight: 600; color: #5A5458; }
+  .meal-macros { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: #5A5458; padding: 6px 0; border-top: 1px dashed #FCE4DC; border-bottom: 1px dashed #FCE4DC; margin-bottom: 10px; }
+  .meal-macros span { font-weight: 500; }
+  .meal-desc { font-size: 12px; color: #5A5458; font-style: italic; margin-bottom: 10px; }
+  .section-label { font-size: 10px; font-weight: 700; color: #E8927C; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 5px; }
+  .ingredients ul, .instructions ol { padding-left: 20px; margin-bottom: 10px; }
+  .ingredients li, .instructions li { font-size: 12px; color: #2D2A2E; margin-bottom: 3px; }
+
+  /* Workout Card */
+  .workout-card {
+    background: white;
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    border-left: 4px solid #B8D4C2;
+    page-break-inside: avoid;
+  }
+  .workout-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px dashed #E0DCD9; }
+  .workout-icon { font-size: 28px; }
+  .workout-day { font-size: 11px; color: #B8D4C2; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+  .workout-name { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 600; margin-top: 2px; }
+  .exercise-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid #FBF7F4; }
+  .exercise-row:last-child { border-bottom: none; }
+  .ex-num { background: #B8D4C2; color: white; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+  .ex-info { flex: 1; }
+  .ex-name { font-size: 13px; font-weight: 600; color: #2D2A2E; }
+  .ex-mod { font-size: 11px; color: #5A5458; font-style: italic; margin-top: 3px; }
+  .ex-detail { font-size: 11px; color: #948B90; font-weight: 600; flex-shrink: 0; }
+
+  /* Grocery */
+  .grocery-cat {
+    background: white;
+    border-radius: 12px;
+    padding: 18px 22px;
+    margin-bottom: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    page-break-inside: avoid;
+  }
+  .grocery-cat h3 { font-size: 16px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px dashed #FCE4DC; }
+  .grocery-cat ul { list-style: none; padding: 0; columns: 2; column-gap: 30px; }
+  .grocery-cat li { font-size: 12px; color: #2D2A2E; padding: 4px 0; break-inside: avoid; }
+
+  /* Safety Disclaimer */
+  .disclaimer {
+    background: #FCE4DC;
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin: 24px 0;
+    border-left: 4px solid #E8927C;
+  }
+  .disclaimer h3 { font-size: 16px; margin-bottom: 8px; }
+  .disclaimer p { font-size: 12px; color: #5A5458; line-height: 1.6; }
+
+  /* Final Page */
+  .final-page {
+    page-break-before: always;
+    text-align: center;
+    padding: 60px 40px;
+    background: linear-gradient(160deg, #FBF7F4, #FCE4DC);
+    border-radius: 20px;
+    margin-top: 40px;
+  }
+  .final-page h2 { font-size: 32px; margin-bottom: 12px; }
+  .final-page .stay-tag { font-family: 'DM Sans'; color: #E8927C; font-size: 11px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 30px; }
+  .final-page p { font-size: 14px; color: #5A5458; max-width: 480px; margin: 0 auto 30px; line-height: 1.7; }
+  .links-grid { display: flex; flex-direction: column; gap: 12px; max-width: 380px; margin: 0 auto 30px; }
+  .link-card { background: white; padding: 14px 20px; border-radius: 12px; display: flex; align-items: center; gap: 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); }
+  .link-icon { font-size: 24px; }
+  .link-info { flex: 1; text-align: left; }
+  .link-label { font-size: 10px; color: #948B90; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; }
+  .link-value { font-size: 14px; font-weight: 600; color: #2D2A2E; }
+  .signature { font-family: 'Playfair Display', serif; font-style: italic; font-size: 18px; color: #5A5458; margin-top: 30px; }
+
+  /* Footer (every page) */
+  .footer-line {
+    text-align: center;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #FCE4DC;
+    font-size: 10px;
+    color: #948B90;
+    letter-spacing: 0.05em;
+  }
+  .footer-line span { margin: 0 8px; }
+  .footer-line a { color: #E8927C; text-decoration: none; }
+
+  /* Print rules */
+  @media print {
+    body { padding: 20px; background: white; }
+    .day-section, .workout-card, .grocery-cat { page-break-inside: avoid; }
+    .cover { min-height: 95vh; }
+    .print-button { display: none !important; }
+  }
+
+  /* Print button (only visible on screen) */
+  .print-button {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    background: linear-gradient(135deg, #E8927C, #F2B8A2);
+    color: white;
+    border: none;
+    padding: 14px 24px;
+    border-radius: 30px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 6px 24px rgba(232,146,124,0.4);
+    z-index: 1000;
+  }
+  .print-button:hover { transform: translateY(-2px); }
+</style>
+</head>
+<body>
+
+<!-- Print/Save Button -->
+<button class="print-button" onclick="window.print()">📄 Save as PDF</button>
+
+<!-- Cover Page -->
+<div class="cover">
+  <div class="cover-logo"><span>N</span></div>
+  <h1>Nourish You</h1>
+  <div class="brand">by FitWithHiral</div>
+  <div class="tagline">Nourish your body, transform your life</div>
+  <div class="name-card">
+    <div class="for-label">Crafted for</div>
+    <div class="for-name">${userName}</div>
+  </div>
+  <div class="meta">
+    <div class="meta-item">
+      <div class="meta-label">Plan Type</div>
+      <div class="meta-value">${planType}</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Goal</div>
+      <div class="meta-value">${answers.goal || '—'}</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Diet</div>
+      <div class="meta-value">${dietStr}</div>
+    </div>
+  </div>
+  <div class="date">Generated ${today}</div>
+</div>
+
+<!-- Meals Section -->
+<div class="section-divider">
+  <div class="section-emoji">🥗</div>
+  <h2>Your Meal Plan</h2>
+  <div class="subtitle">${totalDays} days of nourishment, customized for you</div>
+</div>
+${mealsHTML}
+<div class="footer-line">
+  <span>fitwithhiral.com</span>·<span>@fitwithhiral</span>·<span>app.fitwithhiral.com</span>
+</div>
+
+<!-- Workouts Section -->
+${(plan.workout_plan || []).length > 0 ? `
+  <div class="section-divider">
+    <div class="section-emoji">💪</div>
+    <h2>Your Workout Plan</h2>
+    <div class="subtitle">Movement made for ${answers.fitness?.toLowerCase() || 'you'}</div>
+  </div>
+  <div class="disclaimer">
+    <h3>🛡️ Workout Safety</h3>
+    <p>Listen to your body. If any movement causes pain, stop and try the easier modification noted with each exercise. Talk to your doctor before starting if you have joint, back, or heart concerns. This is fitness guidance, not medical advice.</p>
+  </div>
+  ${workoutsHTML}
+  <div class="footer-line">
+    <span>fitwithhiral.com</span>·<span>@fitwithhiral</span>·<span>app.fitwithhiral.com</span>
+  </div>
+` : ''}
+
+<!-- Grocery Section -->
+${(plan.grocery_list || []).length > 0 ? `
+  <div class="section-divider">
+    <div class="section-emoji">🛒</div>
+    <h2>Your Grocery List</h2>
+    <div class="subtitle">Everything you need, organized by category</div>
+  </div>
+  ${groceryHTML}
+  <div class="footer-line">
+    <span>fitwithhiral.com</span>·<span>@fitwithhiral</span>·<span>app.fitwithhiral.com</span>
+  </div>
+` : ''}
+
+<!-- Final Page: Stay Connected -->
+<div class="final-page">
+  <h2>Stay Connected</h2>
+  <div class="stay-tag">Your Wellness Journey</div>
+  <p>You've got everything you need to start. Remember — small daily choices compound into massive transformations. I'm cheering for you every step of the way.</p>
+  <div class="links-grid">
+    <div class="link-card">
+      <span class="link-icon">📱</span>
+      <div class="link-info">
+        <div class="link-label">App</div>
+        <div class="link-value">app.fitwithhiral.com</div>
+      </div>
+    </div>
+    <div class="link-card">
+      <span class="link-icon">🌐</span>
+      <div class="link-info">
+        <div class="link-label">Website</div>
+        <div class="link-value">fitwithhiral.com</div>
+      </div>
+    </div>
+    <div class="link-card">
+      <span class="link-icon">📸</span>
+      <div class="link-info">
+        <div class="link-label">Instagram</div>
+        <div class="link-value">@fitwithhiral</div>
+      </div>
+    </div>
+  </div>
+  <div class="signature">— With love, Hiral 🌸</div>
+</div>
+
+</body>
+</html>`;
+
+    // Open in new window and let user print/save as PDF
+    const w = window.open("", "_blank");
+    if (!w) {
+      alert("Please allow pop-ups to download your PDF, then try again.");
+      return;
+    }
+    w.document.write(html);
+    w.document.close();
+
+    // Wait for fonts to load, then auto-trigger print dialog
+    setTimeout(() => {
+      try { w.focus(); w.print(); } catch(e) {}
+    }, 800);
+  };
+
   const reset = () => {
     clearSession();
     setScreen("welcome"); setStep(0); setAnswers({}); setUser(null); setPlan(null); setProgress(0); setGenCount(0); setIsPaid(false); setPlanHistory([]); setExpired(false);
@@ -1784,7 +2223,7 @@ export default function App(){
     {screen === "preview" && <PreviewScreen plan={plan} answers={answers} user={user} isPaid={isPaid} onUnlock={() => setScreen("dashboard")} />}
     {screen === "payment-success" && <PaymentSuccessScreen user={user} onContinue={() => setScreen("dashboard")} />}
     {screen === "limit" && <LimitScreen genCount={genCount} onUpgrade={onUpgrade} onHome={reset} expired={expired} user={user} onSignupDifferent={signupDifferent} />}
-    {screen === "dashboard" && <DashScreen plan={plan} answers={answers} user={user} onRegen={onRegen} onReset={reset} isPaid={isPaid} genCount={genCount} onUpgrade={onUpgrade} planHistory={planHistory} switchPlan={switchPlan} planCreatedAt={planCreatedAt} generateWeek={generateWeek} weekGenerating={weekGenerating} deletePlan={deletePlan} onClearOldPlans={onClearOldPlans} />}
+    {screen === "dashboard" && <DashScreen plan={plan} answers={answers} user={user} onRegen={onRegen} onReset={reset} isPaid={isPaid} genCount={genCount} onUpgrade={onUpgrade} planHistory={planHistory} switchPlan={switchPlan} planCreatedAt={planCreatedAt} generateWeek={generateWeek} weekGenerating={weekGenerating} deletePlan={deletePlan} onClearOldPlans={onClearOldPlans} generatePDF={generatePDF} />}
     {showA2HS && screen === "dashboard" && <AddToHomePrompt onDismiss={() => setShowA2HS(false)} />}
   </div>;
 }
