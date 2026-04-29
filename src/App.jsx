@@ -5,7 +5,7 @@ const SB_URL = "https://fimsmaafruzbpoibepua.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZpbXNtYWFmcnV6YnBvaWJlcHVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNTcyNDUsImV4cCI6MjA5MTgzMzI0NX0.K6RZY9nb8NEcB9yFP4KJXlHyamXa5pFuPA-cmfbnQbI";
 const STRIPE_LINK = "https://buy.stripe.com/bJe3cvaiy2atd6LfZv38402";
 const INSTAGRAM_LINK = "https://www.instagram.com/fitwithhiral/";
-const MAX_FREE_GENS = 3;
+const MAX_FREE_GENS = 10;
 const FREE_ACCESS_DAYS = 7;
 
 // ─── THEME ───
@@ -441,7 +441,7 @@ const ETSY = [
 // ─── UI HELPERS ───
 const pf = "Playfair Display"; const dm = "DM Sans";
 function Fi({children,delay=0,s}){const[v,setV]=useState(false);useEffect(()=>{const t=setTimeout(()=>setV(true),delay);return()=>clearTimeout(t)},[delay]); return <div style={{opacity:v?1:0,transform:v?"translateY(0)":"translateY(14px)",transition:"all 0.5s cubic-bezier(0.22,1,0.36,1)",...s}}>{children}</div>}
-function Logo({s="md"}){const z=s==="sm"?16:s==="lg"?28:20; return <div style={{display:"flex",alignItems:"center",gap:6}}><div style={{width:z,height:z,borderRadius:"50%",background:`linear-gradient(135deg,${C.coral},${C.peach})`,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{color:"#fff",fontSize:z*.5,fontWeight:700,fontFamily:pf}}>N</span></div><span style={{fontFamily:pf,fontSize:z*.85,fontWeight:600,color:C.dk,letterSpacing:"0.02em"}}>Nourish Her</span></div>}
+function Logo({s="md"}){const z=s==="sm"?16:s==="lg"?28:20; return <div style={{display:"flex",alignItems:"center",gap:6}}><div style={{width:z,height:z,borderRadius:"50%",background:`linear-gradient(135deg,${C.coral},${C.peach})`,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{color:"#fff",fontSize:z*.5,fontWeight:700,fontFamily:pf}}>N</span></div><span style={{fontFamily:pf,fontSize:z*.85,fontWeight:600,color:C.dk,letterSpacing:"0.02em"}}>Nourish You</span></div>}
 function Btn({children,onClick,disabled,full,secondary,style:sx}){ return <button onClick={onClick} disabled={disabled} style={{width:full?"100%":"auto",background:disabled?C.peachL:secondary?C.wh:`linear-gradient(135deg,${C.coral},${C.coralL})`,color:disabled?C.mtL:secondary?C.coral:"#fff",border:secondary?`2px solid ${C.coral}`:"none",borderRadius:50,padding:"15px 36px",fontFamily:dm,fontSize:16,fontWeight:600,cursor:disabled?"default":"pointer",transition:"all 0.3s",boxShadow:disabled||secondary?"none":`0 10px 30px ${C.coral}25`,letterSpacing:"0.02em",...sx}}>{children}</button>}
 
 function getRelevantEtsy(a){ return ETSY.filter(p=>p.tags.some(t=>[a.goal,...(a.focus||[])].includes(t))); }
@@ -555,7 +555,7 @@ function WelcomeScreen({onStart}){
     <div style={{position:"absolute",bottom:-50,left:-50,width:180,height:180,borderRadius:"50%",background:C.blush,opacity:.35,animation:"float 8s ease infinite",animationDelay:"1s"}}/>
     <div style={{position:"absolute",top:"45%",left:-20,width:80,height:80,borderRadius:"50%",border:`2px solid ${C.peachL}`,opacity:.2,animation:"float 5s ease infinite",animationDelay:"2s"}}/>
     <Fi delay={100}><div style={{width:80,height:80,borderRadius:"50%",background:`linear-gradient(135deg,${C.coral},${C.peach},${C.gold})`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:12,boxShadow:`0 16px 50px ${C.coral}28`,animation:"float 3s ease infinite"}}><span style={{fontSize:36,color:"#fff",fontFamily:pf,fontWeight:700}}>N</span></div></Fi>
-    <Fi delay={200}><h1 style={{fontFamily:pf,fontSize:36,fontWeight:700,color:C.dk,textAlign:"center",letterSpacing:"0.01em"}}>Nourish Her</h1></Fi>
+    <Fi delay={200}><h1 style={{fontFamily:pf,fontSize:36,fontWeight:700,color:C.dk,textAlign:"center",letterSpacing:"0.01em"}}>Nourish You</h1></Fi>
     <Fi delay={300}><p style={{fontFamily:dm,fontSize:12,fontWeight:500,color:C.coral,letterSpacing:"0.15em",textTransform:"uppercase",marginTop:4}}>by FitWithHiral</p></Fi>
     <Fi delay={450}><p style={{fontFamily:dm,fontSize:16,color:C.mt,textAlign:"center",maxWidth:330,lineHeight:1.6,marginTop:20}}>A personalized wellness experience with meal plans, workouts & progress tracking — built for <em style={{fontFamily:pf,color:C.coral}}>real life</em>.</p></Fi>
     <Fi delay={600}><div style={{marginTop:32,display:"flex",flexDirection:"column",alignItems:"center",gap:10}}><Btn onClick={onStart} style={{animation:"glow 2s ease infinite"}}>Take My Free Quiz →</Btn><span style={{fontFamily:dm,fontSize:12,color:C.mtL}}>2 minutes • Get your free 7-day plan</span></div></Fi>
@@ -691,42 +691,108 @@ function QuizScreen({step,answers,onAnswer,onBack,onNext}){
   </div>;
 }
 
+// Rotating fun facts / motivational cards shown during plan generation
+const LOADING_CARDS = [
+  // 🥑 Fun food facts
+  {emoji:"🥑",category:"Did you know?",text:"Avocados contain MORE potassium than bananas — perfect for muscle recovery!"},
+  {emoji:"🍯",category:"Did you know?",text:"Honey never spoils. Archaeologists found 3,000-year-old honey still safe to eat in Egyptian tombs!"},
+  {emoji:"🥬",category:"Did you know?",text:"Spinach loses 50% of its nutrients within 5 days of refrigeration. Eat it fresh!"},
+  {emoji:"🌶️",category:"Did you know?",text:"Capsaicin in chili peppers can boost your metabolism by up to 8% for hours after eating!"},
+  {emoji:"🥚",category:"Did you know?",text:"Eggs contain ALL 9 essential amino acids — the gold standard of complete proteins."},
+  {emoji:"🍓",category:"Did you know?",text:"Strawberries have more vitamin C than oranges, gram for gram!"},
+  {emoji:"🌰",category:"Did you know?",text:"Almonds aren't actually nuts — they're seeds from the almond tree fruit!"},
+  {emoji:"🥦",category:"Did you know?",text:"Broccoli contains more protein per calorie than steak. Plant power!"},
+  {emoji:"🍌",category:"Did you know?",text:"Bananas are slightly radioactive (in a good way!) — they contain potassium-40."},
+  {emoji:"🫐",category:"Did you know?",text:"Blueberries are one of the few foods that are truly naturally blue."},
+
+  // 💪 Motivational
+  {emoji:"💪",category:"Remember",text:"You're not just building a meal plan — you're investing in YOUR future self."},
+  {emoji:"🌸",category:"Remember",text:"Small daily choices compound into massive transformations. You're already doing it."},
+  {emoji:"✨",category:"Remember",text:"Progress, not perfection. Every healthy meal is a win worth celebrating."},
+  {emoji:"🌿",category:"Remember",text:"Your body is the only place you'll ever truly live — make it a home you love."},
+  {emoji:"🦋",category:"Remember",text:"Healing yourself is the most radical thing you can do. You're worth this time."},
+  {emoji:"🌺",category:"Remember",text:"Strong is the new beautiful. And beautiful was always strong."},
+  {emoji:"⭐",category:"Remember",text:"You don't have to be extreme. You just have to be consistent."},
+
+  // 🧘 Wellness tips
+  {emoji:"💧",category:"Wellness Tip",text:"Drink a glass of water before each meal — it aids digestion and reduces overeating!"},
+  {emoji:"🌅",category:"Wellness Tip",text:"Morning sunlight (within 1 hour of waking) regulates your hormones for the entire day."},
+  {emoji:"😴",category:"Wellness Tip",text:"Quality sleep burns calories too — your body repairs muscle and balances hormones overnight."},
+  {emoji:"🚶‍♀️",category:"Wellness Tip",text:"A 10-minute walk after meals can reduce blood sugar spikes by up to 30%."},
+  {emoji:"🧘‍♀️",category:"Wellness Tip",text:"Just 5 minutes of deep breathing daily can lower cortisol and reduce belly fat."},
+  {emoji:"🍵",category:"Wellness Tip",text:"Green tea contains L-theanine — calm energy without the caffeine crash."},
+
+  // 🤣 Light humor
+  {emoji:"😄",category:"Fun Fact",text:"Carrots were originally PURPLE. The orange version was bred in the 17th century by the Dutch!"},
+  {emoji:"🤣",category:"Smile Break",text:"Your future self is already thanking you for picking healthy options today."},
+  {emoji:"🍕",category:"Smile Break",text:"Pizza is technically a salad if you put enough vegetables on it. (We don't actually believe this.)"},
+  {emoji:"🥗",category:"Smile Break",text:"A salad a day keeps the cravings away. Maybe. Sometimes. Often!"},
+
+  // 🎯 Stats/Science
+  {emoji:"🔬",category:"Science Says",text:"Eating protein at every meal helps preserve lean muscle and keeps you fuller longer."},
+  {emoji:"🌾",category:"Science Says",text:"Fiber feeds your gut bacteria — which influence your mood, immunity, and even cravings!"},
+  {emoji:"🥄",category:"Science Says",text:"Eating slowly (20+ minutes per meal) helps your brain register fullness signals."},
+  {emoji:"🍳",category:"Science Says",text:"Cooking at home cuts calorie intake by 25% on average vs eating out."},
+];
+
 function LoadingScreen({progress, isPaid}){
-  const msgs = isPaid
-    ? ["Analyzing your goals & preferences...","AI is crafting 28 unique recipes...","Building 4 weeks of progressive workouts...","Generating your complete grocery list...","Finalizing your full month plan..."]
-    : ["Analyzing your goals & preferences...","AI is crafting personalized recipes...","Building your custom workout program...","Generating your grocery list...","Finalizing your personalized plan..."];
-  const s=Math.min(Math.floor(progress/20),4);
+  const [cardIdx, setCardIdx] = useState(0);
+
+  // Rotate cards every 5 seconds
+  useEffect(() => {
+    const iv = setInterval(() => {
+      setCardIdx(i => (i + 1) % LOADING_CARDS.length);
+    }, 5000);
+    return () => clearInterval(iv);
+  }, []);
+
+  // Pick a random starting card so each generation feels fresh
+  useEffect(() => {
+    setCardIdx(Math.floor(Math.random() * LOADING_CARDS.length));
+  }, []);
+
+  const card = LOADING_CARDS[cardIdx];
   const timeEstimate = "1-3 minutes";
-  return <div style={{minHeight:"100vh",background:`linear-gradient(170deg,${C.bg},${C.bgW})`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,paddingTop:32}}>
+
+  return <div style={{minHeight:"100vh",background:`linear-gradient(170deg,${C.bg},${C.bgW})`,display:"flex",flexDirection:"column",alignItems:"center",padding:24,paddingTop:40}}>
 
     {/* Progress circle */}
-    <div style={{width:110,height:110,borderRadius:"50%",background:`conic-gradient(${C.coral} ${progress*3.6}deg,${C.peachL} 0deg)`,display:"flex",alignItems:"center",justifyContent:"center",animation:"pulse 2s ease-in-out infinite",marginBottom:20}}>
+    <div style={{width:110,height:110,borderRadius:"50%",background:`conic-gradient(${C.coral} ${progress*3.6}deg,${C.peachL} 0deg)`,display:"flex",alignItems:"center",justifyContent:"center",animation:"pulse 2s ease-in-out infinite",marginBottom:18}}>
       <div style={{width:90,height:90,borderRadius:"50%",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontFamily:pf,fontSize:24,fontWeight:700,color:C.coral}}>{Math.round(progress)}%</span></div>
     </div>
 
     <h2 style={{fontFamily:pf,fontSize:22,fontWeight:600,color:C.dk,textAlign:"center"}}>Creating Your {isPaid ? "28-Day" : "7-Day"} Plan</h2>
     <p style={{fontFamily:dm,fontSize:12,color:C.mtL,marginTop:3,textAlign:"center"}}>Personalizing based on your preferences</p>
 
-    {/* Time estimate banner — prominent for paid users */}
-    <div style={{marginTop:18,background:`linear-gradient(135deg,${C.peachL}50,${C.blush}80)`,borderRadius:14,padding:"12px 18px",display:"flex",alignItems:"center",gap:10,maxWidth:340,width:"100%",border:`1px solid ${C.coral}25`,animation:"fadeScale 0.5s ease"}}>
-      <span style={{fontSize:22}}>⏱️</span>
-      <div style={{flex:1}}>
-        <div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>This takes {timeEstimate}</div>
-        <div style={{fontFamily:dm,fontSize:11,color:C.mt,marginTop:1,lineHeight:1.4}}>{isPaid ? "Crafting 28 unique days takes time. Please don't close or refresh — your plan is being made just for you." : "Please don't close or refresh — your plan is on the way!"}</div>
-      </div>
+    {/* Time estimate */}
+    <div style={{marginTop:14,background:`${C.peachL}40`,borderRadius:20,padding:"5px 14px",display:"flex",alignItems:"center",gap:6}}>
+      <span style={{fontSize:13}}>⏱️</span>
+      <span style={{fontFamily:dm,fontSize:11,fontWeight:600,color:C.dk}}>Takes {timeEstimate}</span>
     </div>
 
-    {/* Step list */}
-    <div style={{display:"flex",flexDirection:"column",gap:9,marginTop:22,width:"100%",maxWidth:280}}>
-      {msgs.map((m,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:9,opacity:i<=s?1:.25,transition:"all .5s"}}>
-        <div style={{width:22,height:22,borderRadius:"50%",background:i<s?C.gr:i===s?C.coral:C.peachL,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,animation:i===s?"pulse 1.5s ease infinite":"none"}}><span style={{color:"#fff",fontSize:10,fontWeight:700}}>{i<s?"✓":i+1}</span></div>
-        <span style={{fontFamily:dm,fontSize:12,color:i<=s?C.dk:C.mtL}}>{m}</span>
-      </div>)}
+    {/* Rotating fun fact card — the engagement star */}
+    <div key={cardIdx} style={{marginTop:24,background:C.wh,borderRadius:18,padding:"22px 20px",width:"100%",maxWidth:340,boxShadow:`0 4px 24px ${C.coral}15`,border:`1px solid ${C.peachL}80`,animation:"fadeScale 0.5s cubic-bezier(0.22,1,0.36,1)",minHeight:160,display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center",justifyContent:"center"}}>
+      <div style={{fontSize:42,marginBottom:8,animation:"slideUp 0.5s ease"}}>{card.emoji}</div>
+      <div style={{fontFamily:dm,fontSize:10,fontWeight:700,color:C.coral,textTransform:"uppercase",letterSpacing:".1em",marginBottom:6}}>{card.category}</div>
+      <p style={{fontFamily:dm,fontSize:13,color:C.dk,lineHeight:1.5,fontWeight:500,margin:0}}>{card.text}</p>
     </div>
+
+    {/* Card indicators (dots) */}
+    <div style={{display:"flex",gap:5,marginTop:14,justifyContent:"center"}}>
+      {[0,1,2,3,4].map(i => {
+        const isActive = (cardIdx % 5) === i;
+        return <div key={i} style={{width:isActive?20:5,height:5,borderRadius:3,background:isActive?C.coral:C.peachL,transition:"all 0.4s ease"}}/>;
+      })}
+    </div>
+
+    {/* Don't refresh notice */}
+    <p style={{fontFamily:dm,fontSize:11,color:C.mtL,marginTop:18,textAlign:"center",maxWidth:320,lineHeight:1.5}}>
+      ✨ Please don't close or refresh — your personalized plan is being crafted just for you!
+    </p>
 
     {/* Reassurance footer */}
-    <div style={{marginTop:24,display:"flex",alignItems:"center",gap:6,padding:"6px 14px",background:`${C.gr}10`,borderRadius:20}}>
-      <span style={{fontSize:12}}>✨</span>
+    <div style={{marginTop:14,display:"flex",alignItems:"center",gap:6,padding:"6px 14px",background:`${C.gr}10`,borderRadius:20}}>
+      <span style={{fontSize:12}}>💚</span>
       <span style={{fontFamily:dm,fontSize:10,color:C.gr,fontWeight:600}}>Powered by AI • Made just for you</span>
     </div>
   </div>;
@@ -1264,7 +1330,7 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
         <button onClick={()=>window.open("https://www.etsy.com/shop/FitWithHiral","_blank")} style={{width:"100%",background:C.wh,border:`2px solid ${C.peachL}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>🛍️</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Visit Etsy Shop</div></div></button>
         <button onClick={onReset} style={{width:"100%",background:"none",border:`1px solid ${C.peachL}`,borderRadius:12,padding:"10px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginTop:6}}><span style={{fontSize:14}}>🚪</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.mt}}>Log Out</div></div></button>
       </div>
-      <p style={{fontFamily:dm,fontSize:10,color:C.mtL,textAlign:"center",marginTop:20}}>Nourish Her by FitWithHiral v1.0</p>
+      <p style={{fontFamily:dm,fontSize:10,color:C.mtL,textAlign:"center",marginTop:20}}>Nourish You by FitWithHiral v1.0</p>
     </div>}
 
     {/* Bottom nav */}
