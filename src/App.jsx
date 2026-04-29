@@ -793,8 +793,8 @@ function PreviewScreen({plan,answers,user,isPaid,onUnlock}){
   </div>;
 }
 
-function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade,planHistory,switchPlan,planCreatedAt,generateWeek,weekGenerating,deletePlan}){
-  const[tab,setTab]=useState("meals");const[day,setDay]=useState(0);const[exp,setExp]=useState(null);const[chk,setChk]=useState({});const[water,setWater]=useState(3);const[mood,setMood]=useState(null);const[btab,setBtab]=useState("home");const[libExp,setLibExp]=useState(null);const[week,setWeek]=useState(1);const[planSelOpen,setPlanSelOpen]=useState(false);const[currentPlanIdx,setCurrentPlanIdx]=useState(planHistory.length>0?planHistory.length-1:0);
+function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade,planHistory,switchPlan,planCreatedAt,generateWeek,weekGenerating,deletePlan,onClearOldPlans}){
+  const[tab,setTab]=useState("meals");const[day,setDay]=useState(0);const[exp,setExp]=useState(null);const[chk,setChk]=useState({});const[water,setWater]=useState(3);const[mood,setMood]=useState(null);const[btab,setBtab]=useState("home");const[libExp,setLibExp]=useState(null);const[week,setWeek]=useState(1);const[planSelOpen,setPlanSelOpen]=useState(false);const[currentPlanIdx,setCurrentPlanIdx]=useState(planHistory.length>0?planHistory.length-1:0);const[showAllPlans,setShowAllPlans]=useState(false);
   if(!plan?.meal_plan) return <div style={{padding:40,textAlign:"center",fontFamily:dm}}>Loading...</div>;
   const totalPlanDays = plan.meal_plan.length;
   // For paid users, always show 4 weeks (some may be locked/empty)
@@ -877,25 +877,37 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
           <span style={{fontFamily:dm,fontSize:10,color:C.mtL}}>{planHistory.length} saved</span>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          {[...planHistory].reverse().map((h, revIdx) => {
-            const i = planHistory.length - 1 - revIdx;
-            const isMostRecent = revIdx === 0;
-            return <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:10,background:isMostRecent ? `${C.coral}08` : C.bgW,border:isMostRecent ? `1px solid ${C.coral}25` : "1px solid transparent"}}>
-              <button onClick={()=>{switchPlan(i); setBtab("plan");}} style={{flex:1,background:"none",border:"none",cursor:"pointer",textAlign:"left",padding:0}}>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <span style={{fontSize:18}}>{isMostRecent ? "⭐" : "📋"}</span>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk}}>{isMostRecent ? "Most Recent" : `Plan ${i+1}`}</div>
-                    <div style={{fontFamily:dm,fontSize:10,color:C.mtL,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{h.answers?.goal} · {dietToString(h.answers?.diet)}</div>
+          {(() => {
+            const reversed = [...planHistory].reverse();
+            const visible = showAllPlans ? reversed : reversed.slice(0, 5);
+            return visible.map((h, revIdx) => {
+              const i = planHistory.length - 1 - revIdx;
+              const isMostRecent = revIdx === 0;
+              return <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:10,background:isMostRecent ? `${C.coral}08` : C.bgW,border:isMostRecent ? `1px solid ${C.coral}25` : "1px solid transparent"}}>
+                <button onClick={()=>{switchPlan(i); setBtab("plan");}} style={{flex:1,background:"none",border:"none",cursor:"pointer",textAlign:"left",padding:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:18}}>{isMostRecent ? "⭐" : "📋"}</span>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk}}>{isMostRecent ? "Most Recent" : `Plan ${i+1}`}</div>
+                      <div style={{fontFamily:dm,fontSize:10,color:C.mtL,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{h.answers?.goal} · {dietToString(h.answers?.diet)}</div>
+                    </div>
                   </div>
-                </div>
-              </button>
-              {!isMostRecent && <button onClick={()=>deletePlan(i)} style={{background:"none",border:"none",padding:"6px 8px",cursor:"pointer",borderRadius:6,opacity:0.5,transition:"opacity 0.2s"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.5}>
-                <span style={{fontSize:14}}>🗑️</span>
-              </button>}
-            </div>;
-          })}
+                </button>
+                {!isMostRecent && <button onClick={()=>deletePlan(i)} style={{background:"none",border:"none",padding:"6px 8px",cursor:"pointer",borderRadius:6,opacity:0.5,transition:"opacity 0.2s"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.5}>
+                  <span style={{fontSize:14}}>🗑️</span>
+                </button>}
+              </div>;
+            });
+          })()}
         </div>
+        {/* Show more / less toggle */}
+        {planHistory.length > 5 && <button onClick={()=>setShowAllPlans(!showAllPlans)} style={{width:"100%",background:"none",border:"none",padding:"8px",marginTop:6,cursor:"pointer",fontFamily:dm,fontSize:11,fontWeight:600,color:C.coral}}>
+          {showAllPlans ? `Show less ↑` : `Show all ${planHistory.length} plans ↓`}
+        </button>}
+        {/* Clear all older plans */}
+        {planHistory.length > 1 && <button onClick={onClearOldPlans} style={{width:"100%",background:"none",border:`1px dashed ${C.peachL}`,borderRadius:8,padding:"6px 8px",marginTop:6,cursor:"pointer",fontFamily:dm,fontSize:10,fontWeight:600,color:C.mtL}}>
+          🧹 Clear all {planHistory.length - 1} older plans
+        </button>}
       </div>}
 
       {/* Upgrade CTA for free users */}
@@ -1517,6 +1529,18 @@ export default function App(){
           // Use timestamp-based dedup: only push if not already in history
           setPlanHistory(prev => {
             if (prev.some(p => p.createdAt === now)) return prev;
+            // Also check if any plan was created within the last 30 seconds (prevents rapid duplicates)
+            const thirtySecondsAgo = Date.now() - 30000;
+            const hasRecentDuplicate = prev.some(p => {
+              const planTime = new Date(p.createdAt).getTime();
+              return planTime > thirtySecondsAgo &&
+                     p.answers?.goal === answers.goal &&
+                     dietToString(p.answers?.diet) === dietToString(answers.diet);
+            });
+            if (hasRecentDuplicate) {
+              console.log("⚠️ Skipping duplicate plan creation (created within 30s)");
+              return prev;
+            }
             return [...prev, { plan: result, answers: { ...answers }, createdAt: now, label: "Plan " + (prev.length + 1) + ": " + answers.goal + " (" + dietToString(answers.diet) + ")" }];
           });
           // Insert to DB only if not already inserted (track via ref)
@@ -1619,6 +1643,33 @@ export default function App(){
     }
   };
 
+  // Clear all older plans (keep only most recent)
+  const onClearOldPlans = async () => {
+    if (planHistory.length <= 1 || !user?.leadId) return;
+    const olderCount = planHistory.length - 1;
+    if (!confirm(`Delete all ${olderCount} older plans? Your most recent plan will be kept. This can't be undone.`)) return;
+
+    try {
+      const allPlans = await sbFindAll("plans", "lead_id", user.leadId);
+      // Keep only the newest, delete the rest
+      const sortedByDate = [...allPlans].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      const toKeep = sortedByDate[0];
+      const toDelete = sortedByDate.slice(1);
+
+      // Delete all old plans in parallel
+      await Promise.all(toDelete.map(p =>
+        fetch(`${SB_URL}/rest/v1/plans?id=eq.${p.id}`, { method:"DELETE", headers:sbHeaders })
+      ));
+
+      // Update UI to keep only the most recent
+      const mostRecentLocal = planHistory[planHistory.length - 1];
+      setPlanHistory([mostRecentLocal]);
+    } catch(e) {
+      console.warn("Bulk delete failed:", e);
+      alert("Couldn't clear old plans. Try again.");
+    }
+  };
+
   const onUpgrade = () => {
     // Save session before leaving so we can restore after Stripe redirect
     if (user) saveSession({ email: user.email, name: user.name, leadId: user.leadId, isPaid: false });
@@ -1658,7 +1709,7 @@ export default function App(){
     {screen === "preview" && <PreviewScreen plan={plan} answers={answers} user={user} isPaid={isPaid} onUnlock={() => setScreen("dashboard")} />}
     {screen === "payment-success" && <PaymentSuccessScreen user={user} onContinue={() => setScreen("dashboard")} />}
     {screen === "limit" && <LimitScreen genCount={genCount} onUpgrade={onUpgrade} onHome={reset} expired={expired} user={user} onSignupDifferent={signupDifferent} />}
-    {screen === "dashboard" && <DashScreen plan={plan} answers={answers} user={user} onRegen={onRegen} onReset={reset} isPaid={isPaid} genCount={genCount} onUpgrade={onUpgrade} planHistory={planHistory} switchPlan={switchPlan} planCreatedAt={planCreatedAt} generateWeek={generateWeek} weekGenerating={weekGenerating} deletePlan={deletePlan} />}
+    {screen === "dashboard" && <DashScreen plan={plan} answers={answers} user={user} onRegen={onRegen} onReset={reset} isPaid={isPaid} genCount={genCount} onUpgrade={onUpgrade} planHistory={planHistory} switchPlan={switchPlan} planCreatedAt={planCreatedAt} generateWeek={generateWeek} weekGenerating={weekGenerating} deletePlan={deletePlan} onClearOldPlans={onClearOldPlans} />}
     {showA2HS && screen === "dashboard" && <AddToHomePrompt onDismiss={() => setShowA2HS(false)} />}
   </div>;
 }
