@@ -838,15 +838,93 @@ function PreviewScreen({plan,answers,user,isPaid,onUnlock}){
         <Btn onClick={onUnlock} style={{marginTop:12}}>{isPaid?"Open My 28-Day Plan →":"Open My Full 7-Day Plan →"}</Btn>
       </div></Fi>
 
-      {/* 28-day upsell — only for free users */}
-      {!isPaid && <Fi delay={500}><div style={{background:C.wh,borderRadius:16,padding:18,border:`2px solid ${C.coral}18`,boxShadow:`0 3px 16px ${C.coral}06`,marginBottom:16,position:"relative",overflow:"hidden"}}>
-        <div style={{position:"absolute",top:0,right:0,background:C.coral,color:"#fff",fontFamily:dm,fontSize:8,fontWeight:700,padding:"3px 10px",borderBottomLeftRadius:8,letterSpacing:".04em"}}>MOST POPULAR</div>
-        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8,marginTop:4}}><span style={{fontSize:18}}>⚡</span><h3 style={{fontFamily:pf,fontSize:16,fontWeight:600,color:C.dk}}>Want the full 28-day plan?</h3></div>
-        {["4 weeks of unique meal plans","Progressive workout program","Complete weekly grocery lists","10 plan generations","Switch between saved plans","📄 Download your plan as PDF"].map((f,i)=><div key={i} style={{display:"flex",gap:6,alignItems:"center",padding:"3px 0"}}><span style={{color:C.gr,fontSize:12}}>✓</span><span style={{fontFamily:dm,fontSize:12,color:C.mt}}>{f}</span></div>)}
-        <div style={{display:"flex",alignItems:"baseline",gap:6,margin:"12px 0"}}><span style={{fontFamily:dm,fontSize:13,color:C.mtL,textDecoration:"line-through"}}>$29.99 USD</span><span style={{fontFamily:pf,fontSize:28,fontWeight:700,color:C.coral}}>$9.99</span><span style={{fontFamily:dm,fontSize:11,color:C.mtL}}>USD • one-time</span></div>
-        <Btn full onClick={()=>window.open(STRIPE_LINK,"_blank")} style={{animation:"glow 2s ease infinite"}}>Unlock 28-Day Plan — $9.99 USD</Btn>
-        <div style={{display:"flex",justifyContent:"center",marginTop:8}}><SocialProof/></div>
-        <p style={{fontFamily:dm,fontSize:10,color:C.mtL,textAlign:"center",marginTop:4}}>🔒 Secure payment via Stripe</p>
+      {/* 28-day upsell — only for free users — REDESIGNED FOR CONVERSION */}
+      {!isPaid && <Fi delay={500}><div style={{background:`linear-gradient(165deg,${C.wh} 0%,${C.blush}80 100%)`,borderRadius:18,padding:0,border:`2px solid ${C.coral}30`,boxShadow:`0 8px 32px ${C.coral}18`,marginBottom:16,position:"relative",overflow:"hidden"}}>
+
+        {/* Top gradient banner with badge */}
+        <div style={{background:`linear-gradient(135deg,${C.coral},${C.peach})`,padding:"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <span style={{fontFamily:dm,fontSize:9,fontWeight:700,color:"#fff",letterSpacing:".15em",textTransform:"uppercase"}}>⚡ Best Value · Most Popular</span>
+          <span style={{background:"#fff",color:C.coral,fontFamily:dm,fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:10,letterSpacing:".05em"}}>SAVE 67%</span>
+        </div>
+
+        <div style={{padding:"18px 18px 16px"}}>
+          {/* Hero Hook */}
+          <div style={{textAlign:"center",marginBottom:14}}>
+            <h3 style={{fontFamily:pf,fontSize:20,fontWeight:700,color:C.dk,lineHeight:1.25,marginBottom:4}}>Ready for real transformation?</h3>
+            <p style={{fontFamily:dm,fontSize:12,color:C.mt,lineHeight:1.5}}>Your 7-day plan is just the start. Unlock the <b style={{color:C.coral}}>full 28-day journey</b> designed to create lasting change.</p>
+          </div>
+
+          {/* Visual comparison: Free vs Premium */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+            <div style={{background:`${C.bgW}`,borderRadius:10,padding:"10px 8px",textAlign:"center",opacity:0.75,border:`1px dashed ${C.peachL}`}}>
+              <div style={{fontFamily:dm,fontSize:9,fontWeight:700,color:C.mtL,letterSpacing:".1em",textTransform:"uppercase",marginBottom:4}}>Free</div>
+              <div style={{fontFamily:pf,fontSize:24,fontWeight:700,color:C.mtL,lineHeight:1}}>7</div>
+              <div style={{fontFamily:dm,fontSize:9,color:C.mtL,marginTop:2}}>days</div>
+              <div style={{fontFamily:dm,fontSize:9,color:C.mtL,marginTop:6}}>3 generations</div>
+            </div>
+            <div style={{background:`linear-gradient(135deg,${C.coral}15,${C.peach}25)`,borderRadius:10,padding:"10px 8px",textAlign:"center",border:`2px solid ${C.coral}40`,position:"relative"}}>
+              <div style={{fontFamily:dm,fontSize:9,fontWeight:700,color:C.coral,letterSpacing:".1em",textTransform:"uppercase",marginBottom:4}}>⭐ Premium</div>
+              <div style={{fontFamily:pf,fontSize:24,fontWeight:700,color:C.coral,lineHeight:1}}>28</div>
+              <div style={{fontFamily:dm,fontSize:9,color:C.dk,marginTop:2,fontWeight:600}}>days</div>
+              <div style={{fontFamily:dm,fontSize:9,color:C.coral,marginTop:6,fontWeight:600}}>10 generations</div>
+            </div>
+          </div>
+
+          {/* Feature list with strong language */}
+          <div style={{background:C.wh,borderRadius:12,padding:"12px 14px",marginBottom:14,boxShadow:"0 1px 6px rgba(0,0,0,.03)"}}>
+            <div style={{fontFamily:dm,fontSize:10,fontWeight:700,color:C.coral,letterSpacing:".1em",textTransform:"uppercase",marginBottom:8}}>Everything you'll unlock</div>
+            {[
+              {e:"🗓️",t:"Full 4 weeks of unique meals",s:"Never repeat the same recipe twice"},
+              {e:"💪",t:"Progressive workout program",s:"Builds strength week over week"},
+              {e:"🛒",t:"Complete grocery lists",s:"Categorized & ready to shop"},
+              {e:"🔄",t:"10 plan generations",s:"Experiment freely with new combos"},
+              {e:"📄",t:"Beautiful downloadable PDF",s:"Print, save, take to the gym"},
+              {e:"📊",t:"Saved plan history",s:"Switch between past plans anytime"}
+            ].map((f,i)=><div key={i} style={{display:"flex",gap:8,padding:"5px 0",alignItems:"flex-start"}}>
+              <span style={{fontSize:14,flexShrink:0,marginTop:1}}>{f.e}</span>
+              <div style={{flex:1}}>
+                <div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk}}>{f.t}</div>
+                <div style={{fontFamily:dm,fontSize:10,color:C.mtL,marginTop:1}}>{f.s}</div>
+              </div>
+              <span style={{color:C.gr,fontSize:13,flexShrink:0,marginTop:1}}>✓</span>
+            </div>)}
+          </div>
+
+          {/* Pricing block — emphasize value */}
+          <div style={{textAlign:"center",marginBottom:14}}>
+            <div style={{display:"flex",alignItems:"baseline",justifyContent:"center",gap:8,marginBottom:2}}>
+              <span style={{fontFamily:dm,fontSize:13,color:C.mtL,textDecoration:"line-through"}}>$29.99</span>
+              <span style={{fontFamily:pf,fontSize:38,fontWeight:700,color:C.coral,lineHeight:1}}>$9.99</span>
+              <span style={{fontFamily:dm,fontSize:11,color:C.mtL}}>USD</span>
+            </div>
+            <div style={{fontFamily:dm,fontSize:11,color:C.dk,fontWeight:600}}>One-time payment · No subscription · 28-day access</div>
+            <div style={{fontFamily:dm,fontSize:10,color:C.gr,fontWeight:600,marginTop:4}}>That's just <b>36¢ per day</b> for full premium access</div>
+          </div>
+
+          {/* CTA */}
+          <Btn full onClick={()=>window.open(STRIPE_LINK,"_blank")} style={{animation:"glow 2s ease infinite",fontSize:14,padding:"14px"}}>Unlock Premium — $9.99 →</Btn>
+
+          {/* Trust signals */}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:14,marginTop:12,flexWrap:"wrap"}}>
+            <div style={{display:"flex",alignItems:"center",gap:4}}>
+              <span style={{fontSize:11}}>🔒</span>
+              <span style={{fontFamily:dm,fontSize:10,color:C.mtL,fontWeight:600}}>Secure Stripe</span>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:4}}>
+              <span style={{fontSize:11}}>⚡</span>
+              <span style={{fontFamily:dm,fontSize:10,color:C.mtL,fontWeight:600}}>Instant access</span>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:4}}>
+              <span style={{fontSize:11}}>💳</span>
+              <span style={{fontFamily:dm,fontSize:10,color:C.mtL,fontWeight:600}}>No subscription</span>
+            </div>
+          </div>
+
+          <div style={{display:"flex",justifyContent:"center",marginTop:10}}><SocialProof/></div>
+
+          {/* Soft urgency */}
+          <p style={{fontFamily:dm,fontSize:10,color:C.coral,textAlign:"center",marginTop:8,fontWeight:600,fontStyle:"italic"}}>💛 Your future self will thank you for starting today</p>
+        </div>
       </div></Fi>}
 
       {/* Etsy upsells */}
@@ -1704,16 +1782,22 @@ export default function App(){
     if (!confirm("Delete this saved plan? This can't be undone.")) return;
 
     try {
-      // Find and delete from DB by created_at match
+      // Find DB plan by created_at
       const allPlans = await sbFindAll("plans", "lead_id", user.leadId);
       const dbPlan = allPlans.find(p => p.created_at === h.createdAt);
+
       if (dbPlan) {
-        const r = await fetch(`${SB_URL}/rest/v1/plans?id=eq.${dbPlan.id}`, { method:"DELETE", headers:sbHeaders });
+        const r = await fetch(`${SB_URL}/rest/v1/plans?id=eq.${dbPlan.id}`, {
+          method: "DELETE",
+          headers: { ...sbHeaders, "Prefer": "return=minimal" }
+        });
         if (!r.ok) {
-          console.warn("DB delete returned:", r.status);
+          console.warn("Delete failed with status:", r.status, await r.text());
+          alert("Couldn't delete this plan due to a server error. Please try again or contact support.");
+          return;
         }
       }
-      // Update UI — just remove from history, current plan stays unchanged (since deleted is older)
+      // Update UI
       const newHistory = planHistory.filter((_, i) => i !== planIdx);
       setPlanHistory(newHistory);
     } catch(e) {
@@ -1730,19 +1814,52 @@ export default function App(){
 
     try {
       const allPlans = await sbFindAll("plans", "lead_id", user.leadId);
-      // Keep only the newest, delete the rest
+      console.log(`🗑️ Found ${allPlans.length} plans in DB, attempting to delete ${allPlans.length - 1}`);
+
+      // Sort by created_at desc — newest first
       const sortedByDate = [...allPlans].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-      const toKeep = sortedByDate[0];
       const toDelete = sortedByDate.slice(1);
 
-      // Delete all old plans in parallel
-      await Promise.all(toDelete.map(p =>
-        fetch(`${SB_URL}/rest/v1/plans?id=eq.${p.id}`, { method:"DELETE", headers:sbHeaders })
-      ));
+      // Delete each plan and verify response
+      let successCount = 0;
+      let failCount = 0;
+      for (const p of toDelete) {
+        try {
+          const r = await fetch(`${SB_URL}/rest/v1/plans?id=eq.${p.id}`, {
+            method: "DELETE",
+            headers: { ...sbHeaders, "Prefer": "return=minimal" }
+          });
+          if (r.ok) {
+            successCount++;
+          } else {
+            failCount++;
+            console.warn(`Failed to delete plan ${p.id}: ${r.status}`, await r.text());
+          }
+        } catch(err) {
+          failCount++;
+          console.warn(`Delete error for ${p.id}:`, err);
+        }
+      }
 
-      // Update UI to keep only the most recent
-      const mostRecentLocal = planHistory[planHistory.length - 1];
-      setPlanHistory([mostRecentLocal]);
+      console.log(`✅ Deleted ${successCount}, ❌ Failed ${failCount}`);
+
+      // Re-fetch to verify what's actually in DB now
+      const remaining = await sbFindAll("plans", "lead_id", user.leadId);
+      console.log(`📊 Plans remaining in DB: ${remaining.length}`);
+
+      if (remaining.length > 1) {
+        // Some deletes failed — show warning
+        alert(`Deleted ${successCount} plans, but ${remaining.length - 1} could not be removed. This may be due to database security settings. Please contact support if this continues.`);
+      }
+
+      // Rebuild local history from what's actually in DB
+      const newHistory = remaining.map((p, i) => ({
+        plan: { meal_plan: p.meal_plan, workout_plan: p.workout_plan, grocery_list: p.grocery_list },
+        answers: { goal: answers.goal, diet: answers.diet, fitness: answers.fitness, time: answers.time, focus: answers.focus, cuisine: answers.cuisine },
+        createdAt: p.created_at,
+        label: "Plan " + (i + 1)
+      }));
+      setPlanHistory(newHistory);
     } catch(e) {
       console.warn("Bulk delete failed:", e);
       alert("Couldn't clear old plans. Try again.");
@@ -2048,30 +2165,52 @@ export default function App(){
     .print-button { display: none !important; }
   }
 
-  /* Print button (only visible on screen) */
-  .print-button {
+  /* Action button bar (only visible on screen) */
+  .action-bar {
     position: fixed;
-    bottom: 30px;
-    right: 30px;
-    background: linear-gradient(135deg, #E8927C, #F2B8A2);
-    color: white;
-    border: none;
-    padding: 14px 24px;
-    border-radius: 30px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    box-shadow: 0 6px 24px rgba(232,146,124,0.4);
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
     z-index: 1000;
   }
-  .print-button:hover { transform: translateY(-2px); }
+  .action-btn {
+    border: none;
+    padding: 13px 22px;
+    border-radius: 30px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.15);
+    transition: all 0.2s;
+  }
+  .action-btn.primary {
+    background: linear-gradient(135deg, #E8927C, #F2B8A2);
+    color: white;
+  }
+  .action-btn.secondary {
+    background: white;
+    color: #2D2A2E;
+    border: 1px solid #FCE4DC;
+  }
+  .action-btn:hover { transform: translateY(-2px); }
 </style>
 </head>
 <body>
 
-<!-- Print/Save Button -->
-<button class="print-button" onclick="window.print()">📄 Save as PDF</button>
+<!-- Action Bar (fixed at bottom — Close + Save as PDF) -->
+<div class="action-bar">
+  <button class="action-btn secondary" onclick="window.close(); setTimeout(()=>{if(!window.closed){window.history.back();}}, 100);">← Back to App</button>
+  <button class="action-btn primary" onclick="window.print()">📄 Save as PDF</button>
+</div>
+
+<!-- Top banner with instructions -->
+<div style="position:fixed;top:0;left:0;right:0;background:#2D2A2E;color:white;padding:10px 20px;text-align:center;font-family:'DM Sans',sans-serif;font-size:12px;z-index:999;display:flex;align-items:center;justify-content:center;gap:8px;" class="top-banner">
+  <span>📱 Tap <strong>Save as PDF</strong> to download. Or close this tab to return to the app.</span>
+</div>
+<style>@media print { .top-banner { display: none !important; } } body { padding-top: 60px !important; }</style>
 
 <!-- Cover Page -->
 <div class="cover">
@@ -2183,11 +2322,8 @@ ${(plan.grocery_list || []).length > 0 ? `
     }
     w.document.write(html);
     w.document.close();
-
-    // Wait for fonts to load, then auto-trigger print dialog
-    setTimeout(() => {
-      try { w.focus(); w.print(); } catch(e) {}
-    }, 800);
+    // Don't auto-print — let user review the PDF and click the button when ready
+    setTimeout(() => { try { w.focus(); } catch(e) {} }, 300);
   };
 
   const reset = () => {
