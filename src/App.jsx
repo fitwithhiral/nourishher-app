@@ -509,7 +509,7 @@ function SocialProof(){
   },[]);
   return <div style={{display:"flex",alignItems:"center",gap:6,padding:"8px 12px",background:`${C.gr}10`,borderRadius:20,animation:"fadeScale 0.5s ease"}}>
     <div style={{display:"flex"}}>{["🧘","💪","🥗"].map((e,i)=> <span key={i} style={{fontSize:12,marginLeft:i>0?-4:0,animation:`float ${2+i*0.3}s ease infinite`,animationDelay:`${i*0.2}s`}}>{e}</span>)}</div>
-    <span style={{fontFamily:dm,fontSize:10,color:C.gr,fontWeight:600}}>{count.toLocaleString()} women started this month</span>
+    <span style={{fontFamily:dm,fontSize:10,color:C.gr,fontWeight:600}}>{count.toLocaleString()} people started this month</span>
   </div>;
 }
 
@@ -524,7 +524,7 @@ const MOTIVATIONS = [
   {quote:"The only bad workout is the one you didn't do.",author:"— Daily Reminder",emoji:"⚡",grad:[C.coral,C.coralL]},
   {quote:"Wellness is a daily practice of self-love.",author:"— Hiral",emoji:"🌿",grad:[C.gr,C.peach]},
   {quote:"You are stronger than you think, braver than you believe.",author:"— Daily Reminder",emoji:"🦋",grad:[C.rose,C.peach]},
-  {quote:"Every healthy choice is a vote for the woman you're becoming.",author:"— Hiral",emoji:"🌟",grad:[C.gold,C.coral]},
+  {quote:"Every healthy choice is a vote for the person you're becoming.",author:"— Hiral",emoji:"🌟",grad:[C.gold,C.coral]},
   {quote:"Rest is productive too. Listen to your body.",author:"— Daily Reminder",emoji:"🧘",grad:[C.bl,C.grL]},
   {quote:"Hydrate, move, nourish, repeat.",author:"— Hiral",emoji:"💧",grad:[C.bl,C.peach]},
   {quote:"Discipline is choosing between what you want now and what you want most.",author:"— Daily Reminder",emoji:"🎯",grad:[C.coral,C.rose]},
@@ -1056,18 +1056,92 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
         </button>}
       </div>}
 
-      {/* Upgrade CTA for free users */}
-      {!isPaid && <div style={{background:`linear-gradient(135deg,${C.coral}06,${C.peach}10)`,borderRadius:14,padding:14,border:`1px solid ${C.coral}18`,marginBottom:12,position:"relative",overflow:"hidden"}}>
-        <div style={{position:"absolute",top:0,right:0,background:C.coral,color:"#fff",fontFamily:dm,fontSize:8,fontWeight:700,padding:"3px 10px",borderBottomLeftRadius:8,letterSpacing:".04em"}}>MOST POPULAR</div>
-        <div style={{marginTop:6}}>
-          <div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>⚡ Unlock Full 28-Day Plan</div>
-          <div style={{fontFamily:dm,fontSize:11,color:C.mtL,marginTop:2}}>10 plan gens • Full month of meals • PDF download</div>
-          <div style={{display:"flex",alignItems:"baseline",gap:6,margin:"8px 0"}}>
-            <span style={{fontFamily:pf,fontSize:24,fontWeight:700,color:C.coral}}>$9.99</span>
-            <span style={{fontFamily:dm,fontSize:11,color:C.mtL,textDecoration:"line-through"}}>$29.99</span>
-            <span style={{fontFamily:dm,fontSize:10,color:C.mtL}}>USD • one-time</span>
+      {/* Upgrade CTA for free users — REDESIGNED FOR CONVERSION */}
+      {!isPaid && <div style={{background:`linear-gradient(165deg,${C.wh} 0%,${C.blush}80 100%)`,borderRadius:18,padding:0,border:`2px solid ${C.coral}30`,boxShadow:`0 8px 32px ${C.coral}18`,marginBottom:12,position:"relative",overflow:"hidden"}}>
+
+        {/* Top gradient banner with badge */}
+        <div style={{background:`linear-gradient(135deg,${C.coral},${C.peach})`,padding:"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <span style={{fontFamily:dm,fontSize:9,fontWeight:700,color:"#fff",letterSpacing:".15em",textTransform:"uppercase"}}>⚡ Best Value · Most Popular</span>
+          <span style={{background:"#fff",color:C.coral,fontFamily:dm,fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:10,letterSpacing:".05em"}}>SAVE 67%</span>
+        </div>
+
+        <div style={{padding:"18px 18px 16px"}}>
+          {/* Hero Hook */}
+          <div style={{textAlign:"center",marginBottom:14}}>
+            <h3 style={{fontFamily:pf,fontSize:20,fontWeight:700,color:C.dk,lineHeight:1.25,marginBottom:4}}>Ready for real transformation?</h3>
+            <p style={{fontFamily:dm,fontSize:12,color:C.mt,lineHeight:1.5}}>Your 7-day plan is just the start. Unlock the <b style={{color:C.coral}}>full 28-day journey</b> designed to create lasting change.</p>
           </div>
-          <button onClick={onUpgrade} style={{width:"100%",background:`linear-gradient(135deg,${C.coral},${C.coralL})`,color:"#fff",border:"none",borderRadius:10,padding:"10px",fontFamily:dm,fontSize:13,fontWeight:600,cursor:"pointer",animation:"glow 2s ease infinite"}}>Upgrade Now →</button>
+
+          {/* Visual comparison: Free vs Premium */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+            <div style={{background:`${C.bgW}`,borderRadius:10,padding:"10px 8px",textAlign:"center",opacity:0.75,border:`1px dashed ${C.peachL}`}}>
+              <div style={{fontFamily:dm,fontSize:9,fontWeight:700,color:C.mtL,letterSpacing:".1em",textTransform:"uppercase",marginBottom:4}}>Free</div>
+              <div style={{fontFamily:pf,fontSize:24,fontWeight:700,color:C.mtL,lineHeight:1}}>7</div>
+              <div style={{fontFamily:dm,fontSize:9,color:C.mtL,marginTop:2}}>days</div>
+              <div style={{fontFamily:dm,fontSize:9,color:C.mtL,marginTop:6}}>3 generations</div>
+            </div>
+            <div style={{background:`linear-gradient(135deg,${C.coral}15,${C.peach}25)`,borderRadius:10,padding:"10px 8px",textAlign:"center",border:`2px solid ${C.coral}40`,position:"relative"}}>
+              <div style={{fontFamily:dm,fontSize:9,fontWeight:700,color:C.coral,letterSpacing:".1em",textTransform:"uppercase",marginBottom:4}}>⭐ Premium</div>
+              <div style={{fontFamily:pf,fontSize:24,fontWeight:700,color:C.coral,lineHeight:1}}>28</div>
+              <div style={{fontFamily:dm,fontSize:9,color:C.dk,marginTop:2,fontWeight:600}}>days</div>
+              <div style={{fontFamily:dm,fontSize:9,color:C.coral,marginTop:6,fontWeight:600}}>10 generations</div>
+            </div>
+          </div>
+
+          {/* Feature list with strong language */}
+          <div style={{background:C.wh,borderRadius:12,padding:"12px 14px",marginBottom:14,boxShadow:"0 1px 6px rgba(0,0,0,.03)"}}>
+            <div style={{fontFamily:dm,fontSize:10,fontWeight:700,color:C.coral,letterSpacing:".1em",textTransform:"uppercase",marginBottom:8}}>Everything you'll unlock</div>
+            {[
+              {e:"🗓️",t:"Full 4 weeks of unique meals",s:"Never repeat the same recipe twice"},
+              {e:"💪",t:"Progressive workout program",s:"Builds strength week over week"},
+              {e:"🛒",t:"Complete grocery lists",s:"Categorized & ready to shop"},
+              {e:"🔄",t:"10 plan generations",s:"Experiment freely with new combos"},
+              {e:"📄",t:"Beautiful downloadable PDF",s:"Print, save, take to the gym"},
+              {e:"📊",t:"Saved plan history",s:"Switch between past plans anytime"}
+            ].map((f,i)=><div key={i} style={{display:"flex",gap:8,padding:"5px 0",alignItems:"flex-start"}}>
+              <span style={{fontSize:14,flexShrink:0,marginTop:1}}>{f.e}</span>
+              <div style={{flex:1}}>
+                <div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk}}>{f.t}</div>
+                <div style={{fontFamily:dm,fontSize:10,color:C.mtL,marginTop:1}}>{f.s}</div>
+              </div>
+              <span style={{color:C.gr,fontSize:13,flexShrink:0,marginTop:1}}>✓</span>
+            </div>)}
+          </div>
+
+          {/* Pricing block — emphasize value */}
+          <div style={{textAlign:"center",marginBottom:14}}>
+            <div style={{display:"flex",alignItems:"baseline",justifyContent:"center",gap:8,marginBottom:2}}>
+              <span style={{fontFamily:dm,fontSize:13,color:C.mtL,textDecoration:"line-through"}}>$29.99</span>
+              <span style={{fontFamily:pf,fontSize:38,fontWeight:700,color:C.coral,lineHeight:1}}>$9.99</span>
+              <span style={{fontFamily:dm,fontSize:11,color:C.mtL}}>USD</span>
+            </div>
+            <div style={{fontFamily:dm,fontSize:11,color:C.dk,fontWeight:600}}>One-time payment · No subscription · 28-day access</div>
+            <div style={{fontFamily:dm,fontSize:10,color:C.gr,fontWeight:600,marginTop:4}}>That's just <b>36¢ per day</b> for full premium access</div>
+          </div>
+
+          {/* CTA */}
+          <button onClick={onUpgrade} style={{width:"100%",background:`linear-gradient(135deg,${C.coral},${C.coralL})`,color:"#fff",border:"none",borderRadius:30,padding:"14px",fontFamily:dm,fontSize:14,fontWeight:600,cursor:"pointer",animation:"glow 2s ease infinite",boxShadow:`0 6px 20px ${C.coral}40`}}>Unlock Premium — $9.99 →</button>
+
+          {/* Trust signals */}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:14,marginTop:12,flexWrap:"wrap"}}>
+            <div style={{display:"flex",alignItems:"center",gap:4}}>
+              <span style={{fontSize:11}}>🔒</span>
+              <span style={{fontFamily:dm,fontSize:10,color:C.mtL,fontWeight:600}}>Secure Stripe</span>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:4}}>
+              <span style={{fontSize:11}}>⚡</span>
+              <span style={{fontFamily:dm,fontSize:10,color:C.mtL,fontWeight:600}}>Instant access</span>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:4}}>
+              <span style={{fontSize:11}}>💳</span>
+              <span style={{fontFamily:dm,fontSize:10,color:C.mtL,fontWeight:600}}>No subscription</span>
+            </div>
+          </div>
+
+          <div style={{display:"flex",justifyContent:"center",marginTop:10}}><SocialProof/></div>
+
+          {/* Soft urgency */}
+          <p style={{fontFamily:dm,fontSize:10,color:C.coral,textAlign:"center",marginTop:8,fontWeight:600,fontStyle:"italic"}}>💛 Your future self will thank you for starting today</p>
         </div>
       </div>}
 
@@ -1877,7 +1951,7 @@ export default function App(){
   const generatePDF = () => {
     if (!plan?.meal_plan || !isPaid) return;
 
-    const userName = user?.name || "Beautiful";
+    const userName = user?.name || "Friend";
     const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
     const dietStr = dietToString(answers.diet) || "Balanced";
     const cuisineStr = (Array.isArray(answers.cuisine) ? answers.cuisine.join(", ") : answers.cuisine) || "Mixed";
