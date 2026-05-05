@@ -948,7 +948,7 @@ function PreviewScreen({plan,answers,user,isPaid,onUnlock}){
   </div>;
 }
 
-function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade,planHistory,switchPlan,planCreatedAt,generateWeek,weekGenerating,deletePlan,onClearOldPlans,generatePDF,checkIns,hasCheckedInToday,currentStreak,toggleCheckIn}){
+function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade,planHistory,switchPlan,planCreatedAt,generateWeek,weekGenerating,deletePlan,onClearOldPlans,generatePDF,checkIns,hasCheckedInToday,currentStreak,toggleCheckIn,favorites,isFavorited,toggleFavorite}){
   const[tab,setTab]=useState("meals");const[day,setDay]=useState(0);const[exp,setExp]=useState(null);const[chk,setChk]=useState({});const[water,setWater]=useState(3);const[mood,setMood]=useState(null);const[btab,setBtab]=useState("home");const[libExp,setLibExp]=useState(null);const[week,setWeek]=useState(1);const[planSelOpen,setPlanSelOpen]=useState(false);const[currentPlanIdx,setCurrentPlanIdx]=useState(planHistory.length>0?planHistory.length-1:0);const[showAllPlans,setShowAllPlans]=useState(false);
   if(!plan?.meal_plan) return <div style={{padding:40,textAlign:"center",fontFamily:dm}}>Loading...</div>;
   const totalPlanDays = plan.meal_plan.length;
@@ -1282,6 +1282,9 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
                 <div style={{display:"flex",gap:5,marginTop:5,flexWrap:"wrap"}}><span style={{fontFamily:dm,fontSize:9,color:C.mt,background:C.bgW,padding:"2px 7px",borderRadius:7}}>{m.cal} cal</span><span style={{fontFamily:dm,fontSize:9,color:C.gr,background:C.grL,padding:"2px 7px",borderRadius:7}}>{m.protein} protein</span><span style={{fontFamily:dm,fontSize:9,color:C.bl,background:`${C.bl}10`,padding:"2px 7px",borderRadius:7}}>⏱ {m.prep_time}</span></div>
               </div>
               <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:5,flexShrink:0,marginLeft:5}}>
+                <button onClick={e=>{e.stopPropagation();toggleFavorite(m)}} title={isFavorited(m.name)?"Remove from favorites":"Save to favorites"} style={{width:26,height:26,borderRadius:7,border:"none",background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"transform 0.2s ease",fontSize:16}} onMouseDown={e=>e.currentTarget.style.transform="scale(0.85)"} onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}>
+                  <span style={{filter:isFavorited(m.name)?"none":"grayscale(100%) opacity(0.4)",transition:"filter 0.2s"}}>{isFavorited(m.name)?"❤️":"🤍"}</span>
+                </button>
                 <button onClick={e=>{e.stopPropagation();setChk(p=>({...p,[k]:!p[k]}))}} style={{width:26,height:26,borderRadius:7,border:isDone?"none":`2px solid ${C.peachL}`,background:isDone?C.gr:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.3s ease",animation:isDone?"tickPulse 0.4s ease":"none"}}>{isDone&&<span style={{color:"#fff",fontSize:13}}>✓</span>}</button>
                 <span style={{fontSize:9,color:C.mtL,transform:isE?"rotate(180deg)":"none",transition:"transform .2s"}}>▼</span>
               </div>
@@ -1553,6 +1556,54 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
     {btab==="library"&&<div style={{padding:"14px 16px"}}>
       <h2 style={{fontFamily:pf,fontSize:20,fontWeight:600,color:C.dk}}>Recipe Library</h2>
       <p style={{fontFamily:dm,fontSize:12,color:C.mt,marginTop:2,marginBottom:14}}>Tap any recipe to see full details</p>
+
+      {/* ❤️ MY FAVORITES SECTION */}
+      <div style={{background:`linear-gradient(135deg,${C.coral}08,${C.peach}15)`,borderRadius:14,padding:14,marginBottom:16,border:`1px solid ${C.coral}25`}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:favorites.length>0?10:4}}>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <span style={{fontSize:18}}>❤️</span>
+            <h3 style={{fontFamily:dm,fontSize:13,fontWeight:700,color:C.dk}}>My Favorites</h3>
+          </div>
+          <span style={{fontFamily:dm,fontSize:10,color:C.mtL,fontWeight:600}}>{favorites.length} saved</span>
+        </div>
+
+        {favorites.length === 0 && <p style={{fontFamily:dm,fontSize:11,color:C.mtL,lineHeight:1.5,margin:0,padding:"4px 0"}}>Tap the 🤍 on any recipe to save it here. Build your personal cookbook over time!</p>}
+
+        {favorites.length > 0 && <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {favorites.map((m,i)=>{
+            const lk = `fav-${i}`;
+            const isOpen = libExp === lk;
+            return <div key={i} style={{background:C.wh,borderRadius:11,overflow:"hidden",boxShadow:"0 1px 6px rgba(0,0,0,.04)"}}>
+              <div onClick={()=>setLibExp(isOpen?null:lk)} style={{padding:"10px 12px",display:"flex",gap:9,alignItems:"center",cursor:"pointer"}}>
+                <span style={{fontSize:20}}>{m.emoji||"🍽️"}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.name}</div>
+                  <div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>{m.time||"Meal"} • {m.cal||0} cal • {m.prep_time||"—"}</div>
+                </div>
+                <button onClick={e=>{e.stopPropagation();toggleFavorite(m)}} style={{background:"none",border:"none",cursor:"pointer",padding:4,fontSize:14}} title="Remove from favorites">❤️</button>
+                <span style={{fontSize:9,color:C.mtL,transform:isOpen?"rotate(180deg)":"none",transition:"transform .2s"}}>▼</span>
+              </div>
+              {isOpen && <div style={{padding:"0 12px 12px",borderTop:`1px solid ${C.bgW}`}}>
+                {m.desc && <p style={{fontFamily:dm,fontSize:11,color:C.mt,padding:"8px 0 4px",fontStyle:"italic"}}>{m.desc}</p>}
+                {(m.ingredients||[]).length>0 && <>
+                  <h4 style={{fontFamily:dm,fontSize:10,fontWeight:700,color:C.dk,marginTop:4,marginBottom:4,textTransform:"uppercase",letterSpacing:".05em"}}>Ingredients</h4>
+                  {(m.ingredients||[]).map((ing,j)=><div key={j} style={{fontFamily:dm,fontSize:11,color:C.dk,padding:"1px 0"}}><span style={{color:C.coral}}>•</span> {ing}</div>)}
+                </>}
+                {(m.instructions||[]).length>0 && <>
+                  <h4 style={{fontFamily:dm,fontSize:10,fontWeight:700,color:C.dk,marginTop:8,marginBottom:4,textTransform:"uppercase",letterSpacing:".05em"}}>Instructions</h4>
+                  {(m.instructions||[]).map((st,j)=><div key={j} style={{display:"flex",gap:5,padding:"2px 0"}}>
+                    <div style={{width:16,height:16,borderRadius:"50%",background:`${C.coral}15`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontFamily:dm,fontSize:8,fontWeight:700,color:C.coral}}>{j+1}</span></div>
+                    <span style={{fontFamily:dm,fontSize:11,color:C.mt,lineHeight:1.4}}>{st}</span>
+                  </div>)}
+                </>}
+              </div>}
+            </div>;
+          })}
+        </div>}
+      </div>
+
+      {/* All Recipes by Category */}
+      <h3 style={{fontFamily:dm,fontSize:11,fontWeight:700,color:C.mt,textTransform:"uppercase",letterSpacing:".1em",marginBottom:8}}>All Recipes</h3>
       {["Breakfast","Lunch","Snack","Dinner"].map((cat,ci) => {
         const cm = plan.meal_plan.flatMap(d => (d.meals||[]).filter(m => m.time===cat)).filter((m,i,a) => a.findIndex(x => x.name===m.name)===i);
         return <div key={cat}>
@@ -1560,6 +1611,7 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
           {cm.map((m,i) => {
             const lk = `lib-${cat}-${i}`;
             const isOpen = libExp === lk;
+            const fav = isFavorited(m.name);
             return <div key={i} style={{background:C.wh,borderRadius:12,marginBottom:6,overflow:"hidden",boxShadow:"0 1px 6px rgba(0,0,0,.03)"}}>
               <div onClick={() => setLibExp(isOpen ? null : lk)} style={{padding:"11px 12px",display:"flex",gap:9,alignItems:"center",cursor:"pointer"}}>
                 <span style={{fontSize:20}}>{m.emoji}</span>
@@ -1567,6 +1619,9 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
                   <div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>{m.name}</div>
                   <div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>{m.cal} cal • {m.protein} protein • {m.prep_time}</div>
                 </div>
+                <button onClick={e=>{e.stopPropagation();toggleFavorite(m)}} title={fav?"Remove from favorites":"Save to favorites"} style={{background:"none",border:"none",cursor:"pointer",padding:4,fontSize:14}}>
+                  <span style={{filter:fav?"none":"grayscale(100%) opacity(0.4)",transition:"filter 0.2s"}}>{fav?"❤️":"🤍"}</span>
+                </button>
                 <span style={{fontSize:10,color:C.mtL,transform:isOpen?"rotate(180deg)":"none",transition:"transform .2s"}}>▼</span>
               </div>
               {isOpen && <div style={{padding:"0 12px 14px",borderTop:`1px solid ${C.bgW}`}}>
@@ -1802,6 +1857,33 @@ export default function App(){
     }
   };
   // ─── END STREAK TRACKING ───
+
+  // ─── FAVORITES ───
+  // favorites is an array of meal objects: [{name, emoji, cal, protein, ...}]
+  const [favorites, setFavorites] = useState(() => {
+    try {
+      const saved = localStorage.getItem("nh_favorites");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  // Save favorites to localStorage whenever they change
+  useEffect(() => {
+    try { localStorage.setItem("nh_favorites", JSON.stringify(favorites)); } catch {}
+  }, [favorites]);
+
+  // Check if a meal is favorited (by name match)
+  const isFavorited = (mealName) => favorites.some(f => f.name === mealName);
+
+  // Toggle favorite status of a meal
+  const toggleFavorite = (meal) => {
+    if (isFavorited(meal.name)) {
+      setFavorites(favorites.filter(f => f.name !== meal.name));
+    } else {
+      setFavorites([...favorites, { ...meal, savedAt: new Date().toISOString() }]);
+    }
+  };
+  // ─── END FAVORITES ───
   const[genCount,setGenCount]=useState(0);const[isPaid,setIsPaid]=useState(false);const[planHistory,setPlanHistory]=useState([]);const[planCreatedAt,setPlanCreatedAt]=useState(null);const[expired,setExpired]=useState(false);
   const[showA2HS,setShowA2HS]=useState(true);
 
@@ -2662,7 +2744,7 @@ ${(plan.grocery_list || []).length > 0 ? `
     {screen === "preview" && <PreviewScreen plan={plan} answers={answers} user={user} isPaid={isPaid} onUnlock={() => setScreen("dashboard")} />}
     {screen === "payment-success" && <PaymentSuccessScreen user={user} onContinue={() => setScreen("dashboard")} />}
     {screen === "limit" && <LimitScreen genCount={genCount} onUpgrade={onUpgrade} onHome={reset} expired={expired} user={user} onSignupDifferent={signupDifferent} />}
-    {screen === "dashboard" && <DashScreen plan={plan} answers={answers} user={user} onRegen={onRegen} onReset={reset} isPaid={isPaid} genCount={genCount} onUpgrade={onUpgrade} planHistory={planHistory} switchPlan={switchPlan} planCreatedAt={planCreatedAt} generateWeek={generateWeek} weekGenerating={weekGenerating} deletePlan={deletePlan} onClearOldPlans={onClearOldPlans} generatePDF={generatePDF} checkIns={checkIns} hasCheckedInToday={hasCheckedInToday} currentStreak={currentStreak} toggleCheckIn={toggleCheckIn} />}
+    {screen === "dashboard" && <DashScreen plan={plan} answers={answers} user={user} onRegen={onRegen} onReset={reset} isPaid={isPaid} genCount={genCount} onUpgrade={onUpgrade} planHistory={planHistory} switchPlan={switchPlan} planCreatedAt={planCreatedAt} generateWeek={generateWeek} weekGenerating={weekGenerating} deletePlan={deletePlan} onClearOldPlans={onClearOldPlans} generatePDF={generatePDF} checkIns={checkIns} hasCheckedInToday={hasCheckedInToday} currentStreak={currentStreak} toggleCheckIn={toggleCheckIn} favorites={favorites} isFavorited={isFavorited} toggleFavorite={toggleFavorite} />}
     {showA2HS && screen === "dashboard" && <AddToHomePrompt onDismiss={() => setShowA2HS(false)} />}
   </div>;
 }
