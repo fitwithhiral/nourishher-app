@@ -572,6 +572,98 @@ function WelcomeScreen({onStart}){
     <Fi delay={600}><div style={{marginTop:32,display:"flex",flexDirection:"column",alignItems:"center",gap:10}}><Btn onClick={onStart} style={{animation:"glow 2s ease infinite"}}>Take My Free Quiz →</Btn><span style={{fontFamily:dm,fontSize:12,color:C.mtL}}>2 minutes • Get your free 7-day plan</span></div></Fi>
     <Fi delay={700}><div style={{marginTop:16}}><SocialProof/></div></Fi>
     <Fi delay={800}><div style={{marginTop:24,display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center"}}>{["🍽️ Customized Meals","🏋️ Smart Workouts","📊 Progress Tracking","🛒 Grocery Lists","🔄 Monthly Refreshes"].map((t,i)=><span key={i} style={{fontFamily:dm,fontSize:11,color:C.mt,background:`${C.wh}cc`,padding:"6px 12px",borderRadius:16,boxShadow:"0 1px 8px rgba(0,0,0,.03)",animation:`slideUp 0.4s ease`,animationDelay:`${0.8+i*0.1}s`,animationFillMode:"both"}}>{t}</span>)}</div></Fi>
+
+    {/* ⭐ Testimonials Carousel */}
+    <Fi delay={900}><Testimonials/></Fi>
+  </div>;
+}
+
+// ⭐ Rotating Testimonials Component
+function Testimonials() {
+  const testimonials = [
+    {
+      quote: "I love how the meals are tailored to my Indian preferences. Finally an app that gets it!",
+      name: "Priya K.",
+      role: "Working mom of 2",
+      emoji: "🌸",
+      stars: 5
+    },
+    {
+      quote: "The workout modifications saved me. As someone with knee issues, I felt seen for the first time.",
+      name: "Sarah M.",
+      role: "Fitness beginner",
+      emoji: "💪",
+      stars: 5
+    },
+    {
+      quote: "The grocery list alone is worth it. No more wandering aisles wondering what to buy.",
+      name: "Jenna R.",
+      role: "Busy professional",
+      emoji: "🛒",
+      stars: 5
+    },
+    {
+      quote: "The streak feature keeps me showing up — even on my hardest days. Game changer.",
+      name: "Maya P.",
+      role: "Postpartum mom",
+      emoji: "🔥",
+      stars: 5
+    }
+  ];
+
+  const [idx, setIdx] = useState(0);
+
+  // Auto-rotate every 5 seconds
+  useEffect(() => {
+    const iv = setInterval(() => {
+      setIdx(i => (i + 1) % testimonials.length);
+    }, 5000);
+    return () => clearInterval(iv);
+  }, []);
+
+  const t = testimonials[idx];
+
+  return <div style={{marginTop:32,width:"100%",maxWidth:380}}>
+    {/* Trust badge */}
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:10}}>
+      <div style={{display:"flex",gap:1}}>
+        {[1,2,3,4,5].map(s=><span key={s} style={{color:"#FFC857",fontSize:13}}>★</span>)}
+      </div>
+      <span style={{fontFamily:dm,fontSize:10,color:C.mt,fontWeight:600,letterSpacing:".05em"}}>Loved by real users</span>
+    </div>
+
+    {/* Testimonial card with smooth transition */}
+    <div key={idx} style={{background:C.wh,borderRadius:16,padding:"18px 20px",boxShadow:`0 4px 20px ${C.coral}10`,border:`1px solid ${C.peachL}80`,animation:"fadeScale 0.5s ease",position:"relative"}}>
+      {/* Quote mark */}
+      <span style={{position:"absolute",top:-8,left:14,fontSize:34,color:C.coral,fontFamily:pf,lineHeight:1,opacity:0.6}}>"</span>
+
+      <p style={{fontFamily:dm,fontSize:13,color:C.dk,lineHeight:1.55,margin:"4px 0 12px",fontStyle:"italic"}}>{t.quote}</p>
+
+      <div style={{display:"flex",alignItems:"center",gap:10,paddingTop:10,borderTop:`1px dashed ${C.peachL}`}}>
+        <div style={{width:32,height:32,borderRadius:"50%",background:`linear-gradient(135deg,${C.coral}30,${C.peach}40)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{t.emoji}</div>
+        <div style={{flex:1}}>
+          <div style={{fontFamily:dm,fontSize:12,fontWeight:700,color:C.dk}}>{t.name}</div>
+          <div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>{t.role}</div>
+        </div>
+        <div style={{display:"flex",gap:1}}>
+          {Array.from({length:t.stars}).map((_,i)=><span key={i} style={{color:"#FFC857",fontSize:11}}>★</span>)}
+        </div>
+      </div>
+    </div>
+
+    {/* Pagination dots */}
+    <div style={{display:"flex",gap:5,justifyContent:"center",marginTop:10}}>
+      {testimonials.map((_,i)=><button key={i} onClick={()=>setIdx(i)} style={{
+        width: i === idx ? 18 : 5,
+        height: 5,
+        borderRadius: 3,
+        border: "none",
+        background: i === idx ? C.coral : C.peachL,
+        cursor: "pointer",
+        padding: 0,
+        transition: "all 0.3s ease"
+      }}/>)}
+    </div>
   </div>;
 }
 
@@ -1003,7 +1095,24 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
           </div>
           {isPaid && <span style={{background:`linear-gradient(135deg,${C.coral},${C.peach})`,color:"#fff",fontFamily:dm,fontSize:9,fontWeight:700,padding:"4px 10px",borderRadius:12,letterSpacing:".04em"}}>⭐ PREMIUM</span>}
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,paddingTop:10,borderTop:`1px solid ${C.bgW}`}}>
+
+        {/* Personal Stats Row */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,padding:"10px 0",borderTop:`1px solid ${C.bgW}`,borderBottom:`1px solid ${C.bgW}`,marginBottom:10}}>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontFamily:pf,fontSize:18,fontWeight:700,color:C.coral,lineHeight:1}}>{currentStreak}</div>
+            <div style={{fontFamily:dm,fontSize:8,color:C.mtL,fontWeight:600,letterSpacing:".05em",textTransform:"uppercase",marginTop:3}}>🔥 Streak</div>
+          </div>
+          <div style={{textAlign:"center",borderLeft:`1px solid ${C.bgW}`,borderRight:`1px solid ${C.bgW}`}}>
+            <div style={{fontFamily:pf,fontSize:18,fontWeight:700,color:C.gr,lineHeight:1}}>{planHistory.length}</div>
+            <div style={{fontFamily:dm,fontSize:8,color:C.mtL,fontWeight:600,letterSpacing:".05em",textTransform:"uppercase",marginTop:3}}>📋 Plans</div>
+          </div>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontFamily:pf,fontSize:18,fontWeight:700,color:"#C9A8C4",lineHeight:1}}>{favorites.length}</div>
+            <div style={{fontFamily:dm,fontSize:8,color:C.mtL,fontWeight:600,letterSpacing:".05em",textTransform:"uppercase",marginTop:3}}>❤️ Favs</div>
+          </div>
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
           <div><div style={{fontFamily:dm,fontSize:9,color:C.mtL,textTransform:"uppercase",letterSpacing:".04em"}}>Goal</div><div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk,marginTop:2}}>{answers.goal||"—"}</div></div>
           <div><div style={{fontFamily:dm,fontSize:9,color:C.mtL,textTransform:"uppercase",letterSpacing:".04em"}}>Diet</div><div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk,marginTop:2}}>{dietToString(answers.diet)||"—"}</div></div>
           <div><div style={{fontFamily:dm,fontSize:9,color:C.mtL,textTransform:"uppercase",letterSpacing:".04em"}}>Fitness</div><div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk,marginTop:2}}>{answers.fitness||"—"}</div></div>
