@@ -1777,6 +1777,142 @@ function AddToHomePrompt({onDismiss}) {
   </div>;
 }
 
+// ─── ONBOARDING SCREEN ───
+// Beautiful 4-slide welcome carousel for first-time users
+function OnboardingScreen({ onComplete, userName }) {
+  const [slide, setSlide] = useState(0);
+  const slides = [
+    {
+      emoji: "✨",
+      tag: "Welcome",
+      title: `Hi ${userName || "there"}!`,
+      headline: "Your wellness journey,\npersonalized just for you",
+      description: "I'm so glad you're here. In just a few moments, I'll help you create a plan that fits YOUR life — not the other way around.",
+      gradient: [C.peachL, C.blush, C.peach],
+      accent: C.coral
+    },
+    {
+      emoji: "🥗",
+      tag: "Step 1",
+      title: "Quick 5-Question Quiz",
+      headline: "Tell me about you",
+      description: "Your goal, dietary preferences, favorite cuisines, fitness level — so every meal and workout fits perfectly.",
+      gradient: [C.bgW, C.peachL, C.blush],
+      accent: C.coral,
+      previews: [
+        { e: "🔥", t: "Lose Weight" },
+        { e: "🌱", t: "Vegan" },
+        { e: "🍝", t: "Italian" },
+        { e: "💪", t: "Beginner" }
+      ]
+    },
+    {
+      emoji: "🎯",
+      tag: "Step 2",
+      title: "AI Crafts Your Plan",
+      headline: "Real food. Real workouts.\nReal results.",
+      description: "Get 7 days of breakfast, lunch, snack & dinner — plus customized workouts and a complete grocery list. All ingredients with measurements!",
+      gradient: [C.bgW, "#E8F4EE", "#D4E8DC"],
+      accent: C.gr,
+      features: [
+        { e: "🍳", t: "4 meals/day" },
+        { e: "💪", t: "Daily workouts" },
+        { e: "🛒", t: "Grocery list" },
+        { e: "📊", t: "Progress tracking" }
+      ]
+    },
+    {
+      emoji: "🌸",
+      tag: "Step 3",
+      title: "Build Your Habit",
+      headline: "Show up, even imperfectly",
+      description: "Track your daily wins with streaks. Heart your favorite recipes. Watch your transformation unfold one day at a time.",
+      gradient: [C.bgW, "#F5E8F2", "#EFD4E5"],
+      accent: "#C9A8C4",
+      pillars: [
+        { e: "🔥", t: "Daily streaks" },
+        { e: "❤️", t: "Save favorites" },
+        { e: "✨", t: "Real progress" }
+      ]
+    }
+  ];
+
+  const isLast = slide === slides.length - 1;
+  const s = slides[slide];
+
+  return <div style={{minHeight:"100vh",background:`linear-gradient(170deg,${s.gradient[0]} 0%,${s.gradient[1]} 50%,${s.gradient[2]} 100%)`,display:"flex",flexDirection:"column",transition:"background 0.6s ease"}}>
+
+    {/* Header */}
+    <div style={{padding:"16px 18px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <Logo s="sm"/>
+      <button onClick={onComplete} style={{background:"none",border:"none",fontFamily:dm,fontSize:12,color:C.mt,cursor:"pointer",fontWeight:600,padding:"6px 12px",borderRadius:14}}>Skip →</button>
+    </div>
+
+    {/* Progress Dots */}
+    <div style={{display:"flex",gap:6,padding:"0 20px",justifyContent:"center",marginBottom:30}}>
+      {slides.map((_, i) => <div key={i} style={{
+        width: i === slide ? 28 : 6,
+        height: 6,
+        borderRadius: 3,
+        background: i <= slide ? s.accent : C.peachL,
+        transition: "all 0.4s ease"
+      }}/>)}
+    </div>
+
+    {/* Slide Content */}
+    <div style={{flex:1,padding:"20px 28px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center"}}>
+
+      <Fi key={slide} delay={0}>
+        {/* Big emoji */}
+        <div style={{fontSize:80,marginBottom:16,animation:"slideUp 0.5s ease"}}>{s.emoji}</div>
+
+        {/* Tag */}
+        <div style={{fontFamily:dm,fontSize:10,fontWeight:700,color:s.accent,letterSpacing:".25em",textTransform:"uppercase",marginBottom:8}}>{s.tag}</div>
+
+        {/* Title */}
+        <h2 style={{fontFamily:pf,fontSize:22,fontWeight:600,color:C.dk,marginBottom:10}}>{s.title}</h2>
+
+        {/* Headline */}
+        <h1 style={{fontFamily:pf,fontSize:28,fontWeight:700,color:C.dk,lineHeight:1.25,marginBottom:14,whiteSpace:"pre-line"}}>{s.headline}</h1>
+
+        {/* Description */}
+        <p style={{fontFamily:dm,fontSize:14,color:C.mt,lineHeight:1.65,maxWidth:340,marginBottom:24}}>{s.description}</p>
+
+        {/* Slide-specific previews */}
+        {s.previews && <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center",marginBottom:8}}>
+          {s.previews.map((p,i) => <div key={i} style={{background:C.wh,borderRadius:10,padding:"8px 14px",display:"flex",alignItems:"center",gap:6,boxShadow:"0 2px 10px rgba(0,0,0,.04)",animation:`fadeScale 0.4s ease ${i * 0.1}s both`}}>
+            <span style={{fontSize:16}}>{p.e}</span>
+            <span style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk}}>{p.t}</span>
+          </div>)}
+        </div>}
+
+        {s.features && <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,maxWidth:280,marginLeft:"auto",marginRight:"auto",marginBottom:8}}>
+          {s.features.map((f,i) => <div key={i} style={{background:C.wh,borderRadius:10,padding:"10px",display:"flex",alignItems:"center",gap:8,boxShadow:"0 2px 10px rgba(0,0,0,.04)",animation:`fadeScale 0.4s ease ${i * 0.1}s both`}}>
+            <span style={{fontSize:18}}>{f.e}</span>
+            <span style={{fontFamily:dm,fontSize:11,fontWeight:600,color:C.dk}}>{f.t}</span>
+          </div>)}
+        </div>}
+
+        {s.pillars && <div style={{display:"flex",flexDirection:"column",gap:8,maxWidth:280,marginBottom:8}}>
+          {s.pillars.map((p,i) => <div key={i} style={{background:C.wh,borderRadius:10,padding:"10px 16px",display:"flex",alignItems:"center",gap:10,boxShadow:"0 2px 10px rgba(0,0,0,.04)",animation:`slideUp 0.4s ease ${i * 0.1}s both`}}>
+            <span style={{fontSize:20}}>{p.e}</span>
+            <span style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>{p.t}</span>
+          </div>)}
+        </div>}
+      </Fi>
+
+    </div>
+
+    {/* Footer Buttons */}
+    <div style={{padding:"20px 28px 30px",display:"flex",gap:10,alignItems:"center"}}>
+      {slide > 0 && <button onClick={()=>setSlide(slide-1)} style={{background:"none",border:`1.5px solid ${C.peachL}`,borderRadius:30,padding:"14px 22px",cursor:"pointer",fontFamily:dm,fontSize:13,fontWeight:600,color:C.mt}}>← Back</button>}
+      <button onClick={isLast ? onComplete : ()=>setSlide(slide+1)} style={{flex:1,background:`linear-gradient(135deg,${s.accent},${C.peach})`,border:"none",borderRadius:30,padding:"15px 24px",cursor:"pointer",fontFamily:dm,fontSize:14,fontWeight:700,color:"#fff",letterSpacing:".02em",boxShadow:`0 6px 20px ${s.accent}40`,transition:"all 0.2s"}}>
+        {isLast ? "Let's Get Started ✨" : "Continue →"}
+      </button>
+    </div>
+  </div>;
+}
+
 // ─── MAIN APP ───
 export default function App(){
   const[screen,setScreen]=useState("welcome");const[step,setStep]=useState(0);const[answers,setAnswers]=useState({});const[user,setUser]=useState(null);const[plan,setPlan]=useState(null);const[progress,setProgress]=useState(0);
@@ -1977,6 +2113,15 @@ export default function App(){
   const onEmail = (u) => {
     setUser(u);
     saveSession({ email: u.email, name: u.name, leadId: u.leadId, isPaid: false });
+    // Check if user has seen onboarding before (skip if returning user)
+    const hasSeenOnboarding = (() => {
+      try { return localStorage.getItem("nh_onboarding_seen") === "1"; } catch { return false; }
+    })();
+    setScreen(hasSeenOnboarding ? "quiz" : "onboarding");
+  };
+
+  const onOnboardingComplete = () => {
+    try { localStorage.setItem("nh_onboarding_seen", "1"); } catch {}
     setScreen("quiz");
   };
 
@@ -2739,6 +2884,7 @@ ${(plan.grocery_list || []).length > 0 ? `
     <style>{CSS}</style>
     {screen === "welcome" && <WelcomeScreen onStart={() => setScreen("email")} />}
     {screen === "email" && <EmailScreen onSubmit={onEmail} onLogin={onLogin} />}
+    {screen === "onboarding" && <OnboardingScreen onComplete={onOnboardingComplete} userName={user?.name} />}
     {screen === "quiz" && <QuizScreen step={step} answers={answers} onAnswer={onAnswer} onBack={onBack} onNext={onNext} />}
     {screen === "loading" && <LoadingScreen progress={progress} isPaid={isPaid} />}
     {screen === "preview" && <PreviewScreen plan={plan} answers={answers} user={user} isPaid={isPaid} onUnlock={() => setScreen("dashboard")} />}
