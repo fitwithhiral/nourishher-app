@@ -948,7 +948,7 @@ function PreviewScreen({plan,answers,user,isPaid,onUnlock}){
   </div>;
 }
 
-function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade,planHistory,switchPlan,planCreatedAt,generateWeek,weekGenerating,deletePlan,onClearOldPlans,generatePDF,checkIns,hasCheckedInToday,currentStreak,toggleCheckIn,favorites,isFavorited,toggleFavorite}){
+function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade,planHistory,switchPlan,planCreatedAt,generateWeek,weekGenerating,deletePlan,onClearOldPlans,generatePDF,checkIns,hasCheckedInToday,currentStreak,toggleCheckIn,favorites,isFavorited,toggleFavorite,notifSettings,requestNotificationPermission,updateNotifSetting,sendTestNotification}){
   const[tab,setTab]=useState("meals");const[day,setDay]=useState(0);const[exp,setExp]=useState(null);const[chk,setChk]=useState({});const[water,setWater]=useState(3);const[mood,setMood]=useState(null);const[btab,setBtab]=useState("home");const[libExp,setLibExp]=useState(null);const[week,setWeek]=useState(1);const[planSelOpen,setPlanSelOpen]=useState(false);const[currentPlanIdx,setCurrentPlanIdx]=useState(planHistory.length>0?planHistory.length-1:0);const[showAllPlans,setShowAllPlans]=useState(false);
   if(!plan?.meal_plan) return <div style={{padding:40,textAlign:"center",fontFamily:dm}}>Loading...</div>;
   const totalPlanDays = plan.meal_plan.length;
@@ -1659,6 +1659,67 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
         <button onClick={()=>window.open(INSTAGRAM_LINK,"_blank")} style={{width:"100%",background:C.wh,border:`2px solid ${C.peachL}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>📸</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Follow @fitwithhiral</div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>Tips, recipes & wellness on Instagram</div></div></button>
         <button onClick={()=>setBtab("home")} style={{width:"100%",background:C.wh,border:`2px solid ${C.peachL}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>🏠</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Back to Home</div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>Return to your dashboard</div></div></button>
         {isPaid && <button onClick={generatePDF} style={{width:"100%",background:`linear-gradient(135deg,${C.coral}10,${C.peach}10)`,border:`2px solid ${C.coral}40`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>📄</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Download Plan as PDF</div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>Beautifully designed, printable</div></div></button>}
+
+        {/* 🔔 NOTIFICATIONS SECTION */}
+        <div style={{background:C.wh,borderRadius:14,padding:14,marginTop:6,boxShadow:"0 1px 8px rgba(0,0,0,.03)",border:`1px solid ${C.peachL}40`}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <span style={{fontSize:14}}>🔔</span>
+              <h4 style={{fontFamily:pf,fontSize:14,fontWeight:600,color:C.dk}}>Notifications</h4>
+            </div>
+            {notifSettings.permission === "granted" && <span style={{fontFamily:dm,fontSize:9,color:C.gr,fontWeight:700,background:`${C.gr}15`,padding:"3px 8px",borderRadius:10,letterSpacing:".05em"}}>✓ ON</span>}
+            {notifSettings.permission === "denied" && <span style={{fontFamily:dm,fontSize:9,color:"#C45A4A",fontWeight:700,background:"#C45A4A15",padding:"3px 8px",borderRadius:10,letterSpacing:".05em"}}>BLOCKED</span>}
+          </div>
+
+          {notifSettings.permission === "default" && <>
+            <p style={{fontFamily:dm,fontSize:11,color:C.mt,lineHeight:1.5,marginBottom:10}}>Get gentle reminders for meals, workouts & streak protection. We never spam — just helpful nudges.</p>
+            <button onClick={requestNotificationPermission} style={{width:"100%",background:`linear-gradient(135deg,${C.coral},${C.peach})`,border:"none",borderRadius:24,padding:"10px",cursor:"pointer",fontFamily:dm,fontSize:12,fontWeight:700,color:"#fff",boxShadow:`0 3px 10px ${C.coral}30`}}>
+              Enable Notifications
+            </button>
+          </>}
+
+          {notifSettings.permission === "denied" && <>
+            <p style={{fontFamily:dm,fontSize:11,color:C.mt,lineHeight:1.5,marginBottom:6}}>Notifications are blocked. To enable them:</p>
+            <ol style={{fontFamily:dm,fontSize:10,color:C.mtL,paddingLeft:18,lineHeight:1.7}}>
+              <li>Open browser settings (the lock icon next to URL)</li>
+              <li>Find "Notifications" → change to "Allow"</li>
+              <li>Refresh the page</li>
+            </ol>
+          </>}
+
+          {notifSettings.permission === "granted" && <>
+            <p style={{fontFamily:dm,fontSize:11,color:C.mt,lineHeight:1.5,marginBottom:10}}>Customize when you'd like to be reminded:</p>
+
+            {[
+              { key: "breakfast", emoji: "🌅", label: "Breakfast", desc: "Morning reminder" },
+              { key: "lunch", emoji: "🥗", label: "Lunch", desc: "Midday check-in" },
+              { key: "dinner", emoji: "🍽️", label: "Dinner", desc: "Evening meal prep" },
+              { key: "workout", emoji: "💪", label: "Workout", desc: "Movement reminder" },
+              { key: "hydration", emoji: "💧", label: "Hydration", desc: "Drink water!" },
+              { key: "streak", emoji: "🔥", label: "Streak Reminder", desc: "Don't break your streak" }
+            ].map(item => {
+              const setting = notifSettings[item.key] || { enabled: false, time: "12:00" };
+              return <div key={item.key} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:C.bgW,borderRadius:10,marginBottom:5}}>
+                <span style={{fontSize:16}}>{item.emoji}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontFamily:dm,fontSize:11,fontWeight:600,color:C.dk}}>{item.label}</div>
+                  <div style={{fontFamily:dm,fontSize:9,color:C.mtL}}>{item.desc}</div>
+                </div>
+                {setting.enabled && <input type="time" value={setting.time} onChange={e => updateNotifSetting(item.key, { time: e.target.value })} style={{fontFamily:dm,fontSize:10,padding:"3px 6px",border:`1px solid ${C.peachL}`,borderRadius:6,background:C.wh,color:C.dk,width:75}} />}
+                <button onClick={() => updateNotifSetting(item.key, { enabled: !setting.enabled })} style={{width:36,height:20,borderRadius:10,border:"none",background:setting.enabled?C.coral:C.peachL,position:"relative",cursor:"pointer",transition:"all 0.2s"}}>
+                  <div style={{width:16,height:16,borderRadius:"50%",background:"#fff",position:"absolute",top:2,left:setting.enabled?18:2,transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,.2)"}}/>
+                </button>
+              </div>;
+            })}
+
+            <button onClick={sendTestNotification} style={{width:"100%",background:"none",border:`1px dashed ${C.peachL}`,borderRadius:10,padding:"8px",cursor:"pointer",fontFamily:dm,fontSize:11,fontWeight:600,color:C.mt,marginTop:6}}>
+              🔔 Send Test Notification
+            </button>
+
+            <p style={{fontFamily:dm,fontSize:9,color:C.mtL,lineHeight:1.5,marginTop:8,fontStyle:"italic",textAlign:"center"}}>Notifications work best when the app is added to your home screen</p>
+          </>}
+        </div>
+
         {/* Help & Contact Section */}
         <div style={{background:C.wh,borderRadius:14,padding:14,marginTop:6,boxShadow:"0 1px 8px rgba(0,0,0,.03)",border:`1px solid ${C.peachL}40`}}>
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
@@ -2020,6 +2081,133 @@ export default function App(){
     }
   };
   // ─── END FAVORITES ───
+
+  // ─── NOTIFICATIONS SYSTEM ───
+  // Stores user preferences for notifications + handles permission
+  const [notifSettings, setNotifSettings] = useState(() => {
+    try {
+      const saved = localStorage.getItem("nh_notif_settings");
+      return saved ? JSON.parse(saved) : {
+        enabled: false,
+        permission: "default", // "default" | "granted" | "denied"
+        breakfast: { enabled: true, time: "08:00" },
+        lunch: { enabled: true, time: "12:30" },
+        dinner: { enabled: true, time: "18:30" },
+        workout: { enabled: true, time: "17:00" },
+        hydration: { enabled: false, time: "10:00" },
+        streak: { enabled: true, time: "20:00" }
+      };
+    } catch {
+      return { enabled: false, permission: "default" };
+    }
+  });
+
+  // Save settings whenever they change
+  useEffect(() => {
+    try { localStorage.setItem("nh_notif_settings", JSON.stringify(notifSettings)); } catch {}
+  }, [notifSettings]);
+
+  // Check current browser permission state on mount
+  useEffect(() => {
+    if (typeof Notification !== "undefined") {
+      const current = Notification.permission;
+      if (current !== notifSettings.permission) {
+        setNotifSettings(prev => ({ ...prev, permission: current }));
+      }
+    }
+  }, []);
+
+  // Request notification permission from browser
+  const requestNotificationPermission = async () => {
+    if (typeof Notification === "undefined") {
+      alert("Notifications aren't supported on this browser. Try adding the app to your home screen!");
+      return;
+    }
+
+    try {
+      const permission = await Notification.requestPermission();
+      setNotifSettings(prev => ({ ...prev, permission, enabled: permission === "granted" }));
+
+      if (permission === "granted") {
+        // Show a friendly welcome notification
+        new Notification("Nourish You ✨", {
+          body: "Notifications enabled! I'll send you gentle reminders to support your journey.",
+          icon: "/favicon.ico",
+          tag: "welcome"
+        });
+      } else if (permission === "denied") {
+        alert("To enable notifications later, you'll need to allow them in your browser settings.");
+      }
+    } catch (e) {
+      dwarn("Notification permission error:", e);
+    }
+  };
+
+  // Update a specific notification setting
+  const updateNotifSetting = (key, updates) => {
+    setNotifSettings(prev => ({
+      ...prev,
+      [key]: typeof prev[key] === "object" ? { ...prev[key], ...updates } : updates
+    }));
+  };
+
+  // Send a test notification (used in settings)
+  const sendTestNotification = () => {
+    if (notifSettings.permission !== "granted") {
+      requestNotificationPermission();
+      return;
+    }
+    new Notification("Nourish You — Test 🌸", {
+      body: "Your notifications are working! Time to nourish yourself ✨",
+      icon: "/favicon.ico",
+      tag: "test"
+    });
+  };
+
+  // Schedule local notifications based on user's time preferences
+  // Note: This uses setTimeout which only works while app is open.
+  // For true scheduled notifications we need a Service Worker (next phase) or native (mobile wrap).
+  useEffect(() => {
+    if (!notifSettings.enabled || notifSettings.permission !== "granted") return;
+
+    const timeouts = [];
+    const messages = {
+      breakfast: { title: "Good morning! 🌅", body: "Your breakfast is waiting in your plan ✨" },
+      lunch: { title: "Lunch time! 🥗", body: "Take a break and nourish yourself" },
+      dinner: { title: "Dinner reminder 🍽️", body: "Tonight's meal is ready when you are" },
+      workout: { title: "Time to move! 💪", body: "Your workout is ready — even 10 minutes counts" },
+      hydration: { title: "Hydration check 💧", body: "How many glasses of water today?" },
+      streak: { title: "Don't break your streak! 🔥", body: "Check in before midnight to keep your momentum" }
+    };
+
+    Object.entries(messages).forEach(([key, msg]) => {
+      const setting = notifSettings[key];
+      if (!setting?.enabled || !setting?.time) return;
+
+      const [h, m] = setting.time.split(":").map(Number);
+      const now = new Date();
+      const target = new Date();
+      target.setHours(h, m, 0, 0);
+
+      // If time has passed today, schedule for tomorrow
+      if (target <= now) target.setDate(target.getDate() + 1);
+
+      const delay = target - now;
+
+      // Only schedule if within next 24 hours
+      if (delay > 0 && delay < 86400000) {
+        const t = setTimeout(() => {
+          if (Notification.permission === "granted") {
+            new Notification(msg.title, { body: msg.body, icon: "/favicon.ico", tag: key });
+          }
+        }, delay);
+        timeouts.push(t);
+      }
+    });
+
+    return () => timeouts.forEach(clearTimeout);
+  }, [notifSettings]);
+  // ─── END NOTIFICATIONS ───
   const[genCount,setGenCount]=useState(0);const[isPaid,setIsPaid]=useState(false);const[planHistory,setPlanHistory]=useState([]);const[planCreatedAt,setPlanCreatedAt]=useState(null);const[expired,setExpired]=useState(false);
   const[showA2HS,setShowA2HS]=useState(true);
 
@@ -2890,7 +3078,7 @@ ${(plan.grocery_list || []).length > 0 ? `
     {screen === "preview" && <PreviewScreen plan={plan} answers={answers} user={user} isPaid={isPaid} onUnlock={() => setScreen("dashboard")} />}
     {screen === "payment-success" && <PaymentSuccessScreen user={user} onContinue={() => setScreen("dashboard")} />}
     {screen === "limit" && <LimitScreen genCount={genCount} onUpgrade={onUpgrade} onHome={reset} expired={expired} user={user} onSignupDifferent={signupDifferent} />}
-    {screen === "dashboard" && <DashScreen plan={plan} answers={answers} user={user} onRegen={onRegen} onReset={reset} isPaid={isPaid} genCount={genCount} onUpgrade={onUpgrade} planHistory={planHistory} switchPlan={switchPlan} planCreatedAt={planCreatedAt} generateWeek={generateWeek} weekGenerating={weekGenerating} deletePlan={deletePlan} onClearOldPlans={onClearOldPlans} generatePDF={generatePDF} checkIns={checkIns} hasCheckedInToday={hasCheckedInToday} currentStreak={currentStreak} toggleCheckIn={toggleCheckIn} favorites={favorites} isFavorited={isFavorited} toggleFavorite={toggleFavorite} />}
+    {screen === "dashboard" && <DashScreen plan={plan} answers={answers} user={user} onRegen={onRegen} onReset={reset} isPaid={isPaid} genCount={genCount} onUpgrade={onUpgrade} planHistory={planHistory} switchPlan={switchPlan} planCreatedAt={planCreatedAt} generateWeek={generateWeek} weekGenerating={weekGenerating} deletePlan={deletePlan} onClearOldPlans={onClearOldPlans} generatePDF={generatePDF} checkIns={checkIns} hasCheckedInToday={hasCheckedInToday} currentStreak={currentStreak} toggleCheckIn={toggleCheckIn} favorites={favorites} isFavorited={isFavorited} toggleFavorite={toggleFavorite} notifSettings={notifSettings} requestNotificationPermission={requestNotificationPermission} updateNotifSetting={updateNotifSetting} sendTestNotification={sendTestNotification} />}
     {showA2HS && screen === "dashboard" && <AddToHomePrompt onDismiss={() => setShowA2HS(false)} />}
   </div>;
 }
