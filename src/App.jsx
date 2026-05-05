@@ -1,6 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 
 // ─── CONFIG ───
+// ─── DEBUG HELPER ───
+// Logs only show when DEBUG=true. Set to false for production.
+// To enable debugging in production temporarily, change to: const DEBUG = true;
+const DEBUG = false;
+const dlog = (...args) => { if (DEBUG) dlog(...args); };
+const dwarn = (...args) => { if (DEBUG) dwarn(...args); };
+// Errors always show — they help users get help when something breaks
+const derror = (...args) => console.error(...args);
+
 const SB_URL = "https://fimsmaafruzbpoibepua.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZpbXNtYWFmcnV6YnBvaWJlcHVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNTcyNDUsImV4cCI6MjA5MTgzMzI0NX0.K6RZY9nb8NEcB9yFP4KJXlHyamXa5pFuPA-cmfbnQbI";
 const STRIPE_LINK = "https://buy.stripe.com/bJe3cvaiy2atd6LfZv38402";
@@ -34,10 +43,10 @@ async function sbInsert(t, d) {
   try {
     const r = await fetch(`${SB_URL}/rest/v1/${t}`, { method:"POST", headers:{...sbHeaders, Prefer:"return=representation,resolution=merge-duplicates"}, body:JSON.stringify(d) });
     const j = await r.json(); return j?.[0] || null;
-  } catch(e) { console.warn("DB insert error:", e); return null; }
+  } catch(e) { dwarn("DB insert error:", e); return null; }
 }
 async function sbUpdate(t, id, d) {
-  try { await fetch(`${SB_URL}/rest/v1/${t}?id=eq.${id}`, { method:"PATCH", headers:sbHeaders, body:JSON.stringify(d) }); } catch(e) { console.warn("DB update:", e); }
+  try { await fetch(`${SB_URL}/rest/v1/${t}?id=eq.${id}`, { method:"PATCH", headers:sbHeaders, body:JSON.stringify(d) }); } catch(e) { dwarn("DB update:", e); }
 }
 async function sbFind(t, col, val) {
   try {
@@ -55,7 +64,7 @@ async function sbFindAll(t, col, val) {
 
 // ─── MAILCHIMP (via Vercel serverless function) ───
 async function mailchimpSubscribe(email, name) {
-  console.log("📧 Adding to Mailchimp:", email, name);
+  dlog("📧 Adding to Mailchimp:", email, name);
   try {
     const r = await fetch("/api/subscribe", {
       method: "POST",
@@ -63,15 +72,15 @@ async function mailchimpSubscribe(email, name) {
       body: JSON.stringify({ email: email, name: name })
     });
     if (r.ok) {
-      console.log("✅ Mailchimp subscribed successfully");
+      dlog("✅ Mailchimp subscribed successfully");
       return true;
     } else {
       const err = await r.text();
-      console.warn("❌ Mailchimp error:", r.status, err);
+      dwarn("❌ Mailchimp error:", r.status, err);
       return false;
     }
   } catch(e) {
-    console.warn("❌ Mailchimp failed:", e.message);
+    dwarn("❌ Mailchimp failed:", e.message);
     return false;
   }
 }
@@ -80,10 +89,10 @@ async function mailchimpSubscribe(email, name) {
 // weekOnly: if specified (1,2,3,4), generates ONLY that week (faster, cheaper, more reliable)
 // otherwise: generates 7 days (free) or 28 days (paid full plan)
 async function aiGenerate(answers, isPaid = false, weekOnly = null) {
-  console.log("🤖 Starting AI generation...", weekOnly ? `(Week ${weekOnly} only)` : "(full plan)");
+  dlog("🤖 Starting AI generation...", weekOnly ? `(Week ${weekOnly} only)` : "(full plan)");
   const apiKey = import.meta.env.VITE_ANTHROPIC_KEY;
-  console.log("🔑 API key present?", apiKey ? "YES (length: " + apiKey.length + ", starts with: " + apiKey.substring(0,10) + "...)" : "NO");
-  if (!apiKey) { console.warn("❌ No API key found in environment — using fallback"); return null; }
+  dlog("🔑 API key present?", apiKey ? "YES (length: " + apiKey.length + ", starts with: " + apiKey.substring(0,10) + "...)" : "NO");
+  if (!apiKey) { dwarn("❌ No API key found in environment — using fallback"); return null; }
 
   // Determine total days for this generation request
   const totalDays = weekOnly ? 7 : (isPaid ? 28 : 7);
@@ -92,7 +101,7 @@ async function aiGenerate(answers, isPaid = false, weekOnly = null) {
   const weekNum = weekOnly || 1;
   const cuisines = Array.isArray(answers.cuisine) ? answers.cuisine : (answers.cuisine ? [answers.cuisine] : []);
   const cuisineStr = cuisines.length > 0 ? cuisines.join(", ") : "varied";
-  console.log("📋 Generating " + planLabel + " plan for:", answers);
+  dlog("📋 Generating " + planLabel + " plan for:", answers);
 
   // Goal-specific workout guidance
   const workoutGuidance = {
@@ -162,7 +171,7 @@ Keep descriptions brief. Keep instructions to 3 short steps. Every day of the ${
 The grocery_list must reflect ALL ingredients used across ALL ${totalDays} days in this plan.`;
 
   try {
-    console.log("📡 Calling Anthropic API...");
+    dlog("📡 Calling Anthropic API...");
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 120000); // 120-second timeout
 
@@ -182,46 +191,46 @@ The grocery_list must reflect ALL ingredients used across ALL ${totalDays} days 
       })
     });
     clearTimeout(timeoutId);
-    console.log("📥 API responded with status:", r.status);
+    dlog("📥 API responded with status:", r.status);
 
     if (!r.ok) {
       const errTxt = await r.text();
-      console.warn("❌ AI API error:", r.status, errTxt);
+      dwarn("❌ AI API error:", r.status, errTxt);
       return null;
     }
 
     const d = await r.json();
-    console.log("✅ Got response. Stop reason:", d.stop_reason, "| Tokens used:", d.usage?.output_tokens);
+    dlog("✅ Got response. Stop reason:", d.stop_reason, "| Tokens used:", d.usage?.output_tokens);
     if (d.stop_reason === "max_tokens") {
-      console.warn("⚠️ Response hit max_tokens limit — was cut off!");
+      dwarn("⚠️ Response hit max_tokens limit — was cut off!");
     }
     const txt = d.content?.map(function(b) { return b.text || ""; }).join("") || "";
-    console.log("📝 Raw AI text (first 200 chars):", txt.substring(0,200));
+    dlog("📝 Raw AI text (first 200 chars):", txt.substring(0,200));
     const cleaned = txt.replace(/```json|```/g, "").trim();
 
     let parsed;
     try {
       parsed = JSON.parse(cleaned);
     } catch(parseErr) {
-      console.warn("❌ JSON parse failed:", parseErr.message);
-      console.log("Full AI text length:", txt.length);
+      dwarn("❌ JSON parse failed:", parseErr.message);
+      dlog("Full AI text length:", txt.length);
       return null;
     }
 
-    console.log("📊 Parsed plan has", parsed?.meal_plan?.length, "days (wanted", totalDays + ")");
+    dlog("📊 Parsed plan has", parsed?.meal_plan?.length, "days (wanted", totalDays + ")");
     // Lenient validation — accept partial responses if reasonable
     const minAcceptableDays = totalDays >= 7 ? Math.max(5, totalDays - 2) : Math.max(2, totalDays - 1);
     if (parsed && parsed.meal_plan && parsed.meal_plan.length >= minAcceptableDays) {
-      console.log("🎉 AI plan SUCCESS! Got", parsed.meal_plan.length, "days (wanted", totalDays + ")");
+      dlog("🎉 AI plan SUCCESS! Got", parsed.meal_plan.length, "days (wanted", totalDays + ")");
       return parsed;
     }
-    console.warn("⚠️ AI plan has fewer days than requested");
+    dwarn("⚠️ AI plan has fewer days than requested");
     return null;
   } catch(e) {
     if (e.name === "AbortError") {
-      console.warn("⏱️ AI request timed out after 60 seconds — falling back");
+      dwarn("⏱️ AI request timed out after 60 seconds — falling back");
     } else {
-      console.warn("❌ AI gen failed with exception:", e.message, e);
+      dwarn("❌ AI gen failed with exception:", e.message, e);
     }
     return null;
   }
@@ -1485,6 +1494,40 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
         <button onClick={()=>window.open(INSTAGRAM_LINK,"_blank")} style={{width:"100%",background:C.wh,border:`2px solid ${C.peachL}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>📸</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Follow @fitwithhiral</div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>Tips, recipes & wellness on Instagram</div></div></button>
         <button onClick={()=>setBtab("home")} style={{width:"100%",background:C.wh,border:`2px solid ${C.peachL}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>🏠</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Back to Home</div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>Return to your dashboard</div></div></button>
         {isPaid && <button onClick={generatePDF} style={{width:"100%",background:`linear-gradient(135deg,${C.coral}10,${C.peach}10)`,border:`2px solid ${C.coral}40`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>📄</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Download Plan as PDF</div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>Beautifully designed, printable</div></div></button>}
+        {/* Help & Contact Section */}
+        <div style={{background:C.wh,borderRadius:14,padding:14,marginTop:6,boxShadow:"0 1px 8px rgba(0,0,0,.03)",border:`1px solid ${C.peachL}40`}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+            <span style={{fontSize:14}}>💬</span>
+            <h4 style={{fontFamily:pf,fontSize:14,fontWeight:600,color:C.dk}}>Need help?</h4>
+          </div>
+          <p style={{fontFamily:dm,fontSize:11,color:C.mt,lineHeight:1.5,marginBottom:10}}>Have a question, suggestion, or want a custom plan? I'd love to hear from you!</p>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            <a href="mailto:hello@fitwithhiral.com?subject=Nourish%20You%20App%20Help" style={{textDecoration:"none",display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:C.bgW,borderRadius:10}}>
+              <span style={{fontSize:14}}>📧</span>
+              <div style={{flex:1}}>
+                <div style={{fontFamily:dm,fontSize:11,fontWeight:600,color:C.dk}}>Email Hiral</div>
+                <div style={{fontFamily:dm,fontSize:9,color:C.mtL}}>hello@fitwithhiral.com</div>
+              </div>
+              <span style={{fontFamily:dm,fontSize:10,color:C.coral,fontWeight:600}}>→</span>
+            </a>
+            <a href="https://www.instagram.com/fitwithhiral/" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none",display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:C.bgW,borderRadius:10}}>
+              <span style={{fontSize:14}}>📸</span>
+              <div style={{flex:1}}>
+                <div style={{fontFamily:dm,fontSize:11,fontWeight:600,color:C.dk}}>DM on Instagram</div>
+                <div style={{fontFamily:dm,fontSize:9,color:C.mtL}}>@fitwithhiral</div>
+              </div>
+              <span style={{fontFamily:dm,fontSize:10,color:C.coral,fontWeight:600}}>→</span>
+            </a>
+            <a href="mailto:hello@fitwithhiral.com?subject=Custom%20Wellness%20Plan%20Inquiry" style={{textDecoration:"none",display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:`linear-gradient(135deg,${C.coral}10,${C.peach}15)`,borderRadius:10,border:`1px dashed ${C.coral}40`}}>
+              <span style={{fontSize:14}}>✨</span>
+              <div style={{flex:1}}>
+                <div style={{fontFamily:dm,fontSize:11,fontWeight:600,color:C.dk}}>Request Custom Plan</div>
+                <div style={{fontFamily:dm,fontSize:9,color:C.mtL}}>1:1 personalized wellness</div>
+              </div>
+              <span style={{fontFamily:dm,fontSize:10,color:C.coral,fontWeight:600}}>→</span>
+            </a>
+          </div>
+        </div>
         <button onClick={()=>window.open("https://www.etsy.com/shop/FitWithHiral","_blank")} style={{width:"100%",background:C.wh,border:`2px solid ${C.peachL}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>🛍️</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Visit Etsy Shop</div></div></button>
         <button onClick={onReset} style={{width:"100%",background:"none",border:`1px solid ${C.peachL}`,borderRadius:12,padding:"10px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginTop:6}}><span style={{fontSize:14}}>🚪</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.mt}}>Log Out</div></div></button>
       </div>
@@ -1649,7 +1692,7 @@ export default function App(){
             }
           }
         }
-      } catch(e) { console.warn("Init error:", e); }
+      } catch(e) { dwarn("Init error:", e); }
     };
     init();
   }, []);
@@ -1731,17 +1774,17 @@ export default function App(){
       const weekToGenerate = isPaid ? 1 : null; // Paid: just week 1; Free: 7 days
       result = await aiGenerate(answers, isPaid, weekToGenerate);
     } catch(e) {
-      console.warn("AI error:", e);
+      dwarn("AI error:", e);
     }
 
     // Fallback only if AI fails
     if (!result || !result.meal_plan || result.meal_plan.length === 0) {
-      console.log("Using fallback plan");
+      dlog("Using fallback plan");
       // For paid users, still only fallback for week 1 (so others can be generated later)
       const fallbackResult = makeFallback(answers, false); // false = just 7 days
       result = fallbackResult;
     } else {
-      console.log("Using AI-generated plan with", result.meal_plan.length, "days");
+      dlog("Using AI-generated plan with", result.meal_plan.length, "days");
     }
 
     // Finish progress animation
@@ -1765,7 +1808,7 @@ export default function App(){
                      dietToString(p.answers?.diet) === dietToString(answers.diet);
             });
             if (hasRecentDuplicate) {
-              console.log("⚠️ Skipping duplicate plan creation (created within 30s)");
+              dlog("⚠️ Skipping duplicate plan creation (created within 30s)");
               return prev;
             }
             return [...prev, { plan: result, answers: { ...answers }, createdAt: now, label: "Plan " + (prev.length + 1) + ": " + answers.goal + " (" + dietToString(answers.diet) + ")" }];
@@ -1802,7 +1845,7 @@ export default function App(){
   const generateWeek = async (weekNum) => {
     if (!isPaid || !plan || weekGenerating) return;
     setWeekGenerating(weekNum);
-    console.log("🗓️ Generating Week " + weekNum + " on-demand...");
+    dlog("🗓️ Generating Week " + weekNum + " on-demand...");
 
     try {
       const weekResult = await aiGenerate(answers, true, weekNum);
@@ -1829,13 +1872,13 @@ export default function App(){
             });
           }
         }
-        console.log("✅ Week " + weekNum + " added!");
+        dlog("✅ Week " + weekNum + " added!");
       } else {
-        console.warn("⚠️ Week " + weekNum + " generation failed");
+        dwarn("⚠️ Week " + weekNum + " generation failed");
         alert("Couldn't generate Week " + weekNum + " right now. Please try again in a moment.");
       }
     } catch(e) {
-      console.warn("Week generation error:", e);
+      dwarn("Week generation error:", e);
       alert("Couldn't generate Week " + weekNum + " right now. Please try again in a moment.");
     } finally {
       setWeekGenerating(null);
@@ -1866,7 +1909,7 @@ export default function App(){
           headers: { ...sbHeaders, "Prefer": "return=minimal" }
         });
         if (!r.ok) {
-          console.warn("Delete failed with status:", r.status, await r.text());
+          dwarn("Delete failed with status:", r.status, await r.text());
           alert("Couldn't delete this plan due to a server error. Please try again or contact support.");
           return;
         }
@@ -1875,7 +1918,7 @@ export default function App(){
       const newHistory = planHistory.filter((_, i) => i !== planIdx);
       setPlanHistory(newHistory);
     } catch(e) {
-      console.warn("Delete failed:", e);
+      dwarn("Delete failed:", e);
       alert("Couldn't delete the plan. Try again.");
     }
   };
@@ -1888,7 +1931,7 @@ export default function App(){
 
     try {
       const allPlans = await sbFindAll("plans", "lead_id", user.leadId);
-      console.log(`🗑️ Found ${allPlans.length} plans in DB, attempting to delete ${allPlans.length - 1}`);
+      dlog(`🗑️ Found ${allPlans.length} plans in DB, attempting to delete ${allPlans.length - 1}`);
 
       // Sort by created_at desc — newest first
       const sortedByDate = [...allPlans].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -1907,19 +1950,19 @@ export default function App(){
             successCount++;
           } else {
             failCount++;
-            console.warn(`Failed to delete plan ${p.id}: ${r.status}`, await r.text());
+            dwarn(`Failed to delete plan ${p.id}: ${r.status}`, await r.text());
           }
         } catch(err) {
           failCount++;
-          console.warn(`Delete error for ${p.id}:`, err);
+          dwarn(`Delete error for ${p.id}:`, err);
         }
       }
 
-      console.log(`✅ Deleted ${successCount}, ❌ Failed ${failCount}`);
+      dlog(`✅ Deleted ${successCount}, ❌ Failed ${failCount}`);
 
       // Re-fetch to verify what's actually in DB now
       const remaining = await sbFindAll("plans", "lead_id", user.leadId);
-      console.log(`📊 Plans remaining in DB: ${remaining.length}`);
+      dlog(`📊 Plans remaining in DB: ${remaining.length}`);
 
       if (remaining.length > 1) {
         // Some deletes failed — show warning
@@ -1935,7 +1978,7 @@ export default function App(){
       }));
       setPlanHistory(newHistory);
     } catch(e) {
-      console.warn("Bulk delete failed:", e);
+      dwarn("Bulk delete failed:", e);
       alert("Couldn't clear old plans. Try again.");
     }
   };
