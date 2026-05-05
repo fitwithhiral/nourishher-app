@@ -948,7 +948,7 @@ function PreviewScreen({plan,answers,user,isPaid,onUnlock}){
   </div>;
 }
 
-function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade,planHistory,switchPlan,planCreatedAt,generateWeek,weekGenerating,deletePlan,onClearOldPlans,generatePDF}){
+function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade,planHistory,switchPlan,planCreatedAt,generateWeek,weekGenerating,deletePlan,onClearOldPlans,generatePDF,checkIns,hasCheckedInToday,currentStreak,toggleCheckIn}){
   const[tab,setTab]=useState("meals");const[day,setDay]=useState(0);const[exp,setExp]=useState(null);const[chk,setChk]=useState({});const[water,setWater]=useState(3);const[mood,setMood]=useState(null);const[btab,setBtab]=useState("home");const[libExp,setLibExp]=useState(null);const[week,setWeek]=useState(1);const[planSelOpen,setPlanSelOpen]=useState(false);const[currentPlanIdx,setCurrentPlanIdx]=useState(planHistory.length>0?planHistory.length-1:0);const[showAllPlans,setShowAllPlans]=useState(false);
   if(!plan?.meal_plan) return <div style={{padding:40,textAlign:"center",fontFamily:dm}}>Loading...</div>;
   const totalPlanDays = plan.meal_plan.length;
@@ -1008,6 +1008,50 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
           <div><div style={{fontFamily:dm,fontSize:9,color:C.mtL,textTransform:"uppercase",letterSpacing:".04em"}}>Diet</div><div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk,marginTop:2}}>{dietToString(answers.diet)||"—"}</div></div>
           <div><div style={{fontFamily:dm,fontSize:9,color:C.mtL,textTransform:"uppercase",letterSpacing:".04em"}}>Fitness</div><div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk,marginTop:2}}>{answers.fitness||"—"}</div></div>
           <div><div style={{fontFamily:dm,fontSize:9,color:C.mtL,textTransform:"uppercase",letterSpacing:".04em"}}>Plan</div><div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:isPaid?C.coral:C.gr,marginTop:2}}>{isPaid?"28-Day Premium":`${FREE_ACCESS_DAYS}-Day Free`}</div></div>
+        </div>
+      </div>
+
+      {/* 🔥 Streak Card — Daily Check-in */}
+      <div style={{background:hasCheckedInToday ? `linear-gradient(135deg,${C.coral}15,${C.peach}25)` : C.wh,borderRadius:14,padding:14,marginBottom:12,border:hasCheckedInToday?`1.5px solid ${C.coral}40`:`1px solid ${C.peachL}`,boxShadow:"0 1px 8px rgba(0,0,0,.03)",transition:"all 0.3s ease"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,flex:1}}>
+            <div style={{fontSize:32,filter:currentStreak===0?"grayscale(100%)":"none",transition:"all 0.3s"}}>{currentStreak >= 7 ? "🔥" : currentStreak >= 3 ? "✨" : currentStreak >= 1 ? "🌱" : "💤"}</div>
+            <div style={{flex:1}}>
+              <div style={{fontFamily:dm,fontSize:9,color:C.mtL,textTransform:"uppercase",letterSpacing:".05em",fontWeight:600}}>Your Streak</div>
+              <div style={{fontFamily:pf,fontSize:22,fontWeight:700,color:currentStreak>0?C.coral:C.mtL,lineHeight:1.1,marginTop:1}}>
+                {currentStreak} {currentStreak===1?"day":"days"}
+              </div>
+              <div style={{fontFamily:dm,fontSize:10,color:C.mt,marginTop:2}}>
+                {hasCheckedInToday
+                  ? `Great job today! ${currentStreak >= 7 ? "You're on fire 🔥" : currentStreak >= 3 ? "Keep it up!" : "Building momentum 🌱"}`
+                  : currentStreak > 0
+                    ? `Don't break your streak — check in today!`
+                    : `Start your streak today ✨`
+                }
+              </div>
+            </div>
+          </div>
+          <button onClick={toggleCheckIn} style={{background:hasCheckedInToday?C.gr:`linear-gradient(135deg,${C.coral},${C.peach})`,border:"none",borderRadius:24,padding:"10px 14px",cursor:"pointer",fontFamily:dm,fontSize:11,fontWeight:700,color:"#fff",letterSpacing:".02em",boxShadow:hasCheckedInToday?"none":`0 4px 12px ${C.coral}30`,whiteSpace:"nowrap",transition:"all 0.2s"}}>
+            {hasCheckedInToday ? "✓ Done" : "Check In"}
+          </button>
+        </div>
+
+        {/* Mini calendar - last 7 days */}
+        <div style={{display:"flex",gap:4,marginTop:12,paddingTop:10,borderTop:`1px dashed ${C.peachL}`}}>
+          {Array.from({length:7}).map((_,i)=>{
+            const d = new Date();
+            d.setDate(d.getDate() - (6 - i));
+            const dStr = d.toISOString().split("T")[0];
+            const isDone = checkIns.includes(dStr);
+            const isToday = dStr === new Date().toISOString().split("T")[0];
+            const dayLetter = ["S","M","T","W","T","F","S"][d.getDay()];
+            return <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+              <span style={{fontFamily:dm,fontSize:8,color:C.mtL,fontWeight:600}}>{dayLetter}</span>
+              <div style={{width:24,height:24,borderRadius:"50%",background:isDone?C.coral:C.bgW,border:isToday?`2px solid ${C.coral}`:`1px solid ${C.peachL}`,display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.2s"}}>
+                {isDone && <span style={{fontSize:11,color:"#fff"}}>✓</span>}
+              </div>
+            </div>;
+          })}
         </div>
       </div>
 
@@ -1387,6 +1431,72 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
       <h2 style={{fontFamily:pf,fontSize:20,fontWeight:600,color:C.dk}}>Your Progress</h2>
       <p style={{fontFamily:dm,fontSize:12,color:C.mt,marginTop:2,marginBottom:14}}>Track your daily wellness</p>
 
+      {/* 🔥 STREAK STATS CARD */}
+      <div style={{background:`linear-gradient(135deg,${C.coral}10,${C.peach}20)`,borderRadius:14,padding:16,marginBottom:14,border:`1px solid ${C.coral}25`}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:14}}>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontSize:28,marginBottom:2}}>{currentStreak >= 7 ? "🔥" : currentStreak >= 3 ? "✨" : "🌱"}</div>
+            <div style={{fontFamily:pf,fontSize:24,fontWeight:700,color:C.coral,lineHeight:1}}>{currentStreak}</div>
+            <div style={{fontFamily:dm,fontSize:9,color:C.mtL,fontWeight:600,letterSpacing:".05em",textTransform:"uppercase",marginTop:2}}>Current Streak</div>
+          </div>
+          <div style={{textAlign:"center",borderLeft:`1px solid ${C.peachL}`,borderRight:`1px solid ${C.peachL}`}}>
+            <div style={{fontSize:28,marginBottom:2}}>📅</div>
+            <div style={{fontFamily:pf,fontSize:24,fontWeight:700,color:C.dk,lineHeight:1}}>{checkIns.length}</div>
+            <div style={{fontFamily:dm,fontSize:9,color:C.mtL,fontWeight:600,letterSpacing:".05em",textTransform:"uppercase",marginTop:2}}>Total Days</div>
+          </div>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontSize:28,marginBottom:2}}>🏆</div>
+            <div style={{fontFamily:pf,fontSize:24,fontWeight:700,color:C.gold,lineHeight:1}}>{(() => {
+              // Calculate longest streak
+              if (!checkIns.length) return 0;
+              const sorted = [...new Set(checkIns)].sort();
+              let longest = 1, current = 1;
+              for (let i = 1; i < sorted.length; i++) {
+                const diff = Math.round((new Date(sorted[i]) - new Date(sorted[i-1])) / 86400000);
+                if (diff === 1) { current++; longest = Math.max(longest, current); }
+                else current = 1;
+              }
+              return longest;
+            })()}</div>
+            <div style={{fontFamily:dm,fontSize:9,color:C.mtL,fontWeight:600,letterSpacing:".05em",textTransform:"uppercase",marginTop:2}}>Best Streak</div>
+          </div>
+        </div>
+
+        {!hasCheckedInToday && <button onClick={toggleCheckIn} style={{width:"100%",background:`linear-gradient(135deg,${C.coral},${C.peach})`,border:"none",borderRadius:24,padding:"11px",cursor:"pointer",fontFamily:dm,fontSize:13,fontWeight:700,color:"#fff",boxShadow:`0 4px 12px ${C.coral}30`}}>
+          ✨ Check In For Today
+        </button>}
+        {hasCheckedInToday && <div style={{textAlign:"center",padding:"8px",background:C.wh,borderRadius:24,fontFamily:dm,fontSize:12,fontWeight:600,color:C.gr}}>✓ You checked in today!</div>}
+      </div>
+
+      {/* 📅 30-DAY CALENDAR VIEW */}
+      <div style={{background:C.wh,borderRadius:14,padding:14,marginBottom:14,boxShadow:"0 1px 8px rgba(0,0,0,.03)"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+          <h4 style={{fontFamily:dm,fontSize:12,fontWeight:700,color:C.dk}}>📊 Last 30 Days</h4>
+          <span style={{fontFamily:dm,fontSize:9,color:C.mtL}}>{checkIns.filter(d => {
+            const daysAgo = Math.round((new Date() - new Date(d)) / 86400000);
+            return daysAgo <= 30;
+          }).length} / 30 days</span>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(10, 1fr)",gap:4}}>
+          {Array.from({length:30}).map((_,i)=>{
+            const d = new Date();
+            d.setDate(d.getDate() - (29 - i));
+            const dStr = d.toISOString().split("T")[0];
+            const isDone = checkIns.includes(dStr);
+            const isToday = dStr === new Date().toISOString().split("T")[0];
+            const dayNum = d.getDate();
+            return <div key={i} title={d.toLocaleDateString()} style={{aspectRatio:"1",borderRadius:6,background:isDone?C.coral:C.bgW,border:isToday?`2px solid ${C.coral}`:`1px solid ${C.peachL}`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:dm,fontSize:9,fontWeight:600,color:isDone?"#fff":C.mtL,transition:"all 0.2s"}}>
+              {dayNum}
+            </div>;
+          })}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginTop:10,paddingTop:10,borderTop:`1px dashed ${C.peachL}`,fontFamily:dm,fontSize:9,color:C.mtL}}>
+          <div style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:10,height:10,borderRadius:3,background:C.coral}}/>Checked in</div>
+          <div style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:10,height:10,borderRadius:3,background:C.bgW,border:`1px solid ${C.peachL}`}}/>Missed</div>
+          <div style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:10,height:10,borderRadius:3,background:C.bgW,border:`2px solid ${C.coral}`}}/>Today</div>
+        </div>
+      </div>
+
       {/* Today's nutrition from meal plan */}
       <div style={{background:C.wh,borderRadius:13,padding:14,boxShadow:"0 1px 8px rgba(0,0,0,.03)",marginBottom:10}}>
         <h4 style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk,marginBottom:10}}>Today's Nutrition ({plan.meal_plan[day]?.day || "Day "+(day+1)})</h4>
@@ -1616,6 +1726,82 @@ function AddToHomePrompt({onDismiss}) {
 export default function App(){
   const[screen,setScreen]=useState("welcome");const[step,setStep]=useState(0);const[answers,setAnswers]=useState({});const[user,setUser]=useState(null);const[plan,setPlan]=useState(null);const[progress,setProgress]=useState(0);
   const insertedTimestamps = useRef(new Set()); // Prevents duplicate plan inserts from React StrictMode/re-renders
+
+  // ─── STREAK TRACKING ───
+  // checkIns is an array of date strings: ["2026-04-29", "2026-04-30", ...]
+  const [checkIns, setCheckIns] = useState(() => {
+    try {
+      const saved = localStorage.getItem("nh_checkins");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  // Save check-ins to localStorage whenever they change
+  useEffect(() => {
+    try { localStorage.setItem("nh_checkins", JSON.stringify(checkIns)); } catch {}
+  }, [checkIns]);
+
+  // Helper: today's date as YYYY-MM-DD
+  const todayStr = () => new Date().toISOString().split("T")[0];
+
+  // Helper: yesterday's date as YYYY-MM-DD
+  const yesterdayStr = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().split("T")[0];
+  };
+
+  // Has user checked in today?
+  const hasCheckedInToday = checkIns.includes(todayStr());
+
+  // Calculate current streak (consecutive days ending today or yesterday)
+  const calculateStreak = (checks) => {
+    if (!checks || checks.length === 0) return 0;
+    const sorted = [...new Set(checks)].sort().reverse(); // unique, newest first
+    const today = todayStr();
+    const yesterday = yesterdayStr();
+
+    // Streak only counts if last check-in was today OR yesterday (forgiveness window)
+    if (sorted[0] !== today && sorted[0] !== yesterday) return 0;
+
+    let streak = 1;
+    let lastDate = new Date(sorted[0]);
+    for (let i = 1; i < sorted.length; i++) {
+      const thisDate = new Date(sorted[i]);
+      const dayDiff = Math.round((lastDate - thisDate) / 86400000);
+      if (dayDiff === 1) {
+        streak++;
+        lastDate = thisDate;
+      } else {
+        break;
+      }
+    }
+    return streak;
+  };
+
+  const currentStreak = calculateStreak(checkIns);
+
+  // Toggle today's check-in
+  const toggleCheckIn = () => {
+    const today = todayStr();
+    if (checkIns.includes(today)) {
+      // Uncheck (mistake correction)
+      setCheckIns(checkIns.filter(d => d !== today));
+    } else {
+      // Check in for today
+      setCheckIns([...checkIns, today]);
+      // Persist to Supabase
+      if (user?.leadId) {
+        sbInsert("tracking", {
+          lead_id: user.leadId,
+          tracking_date: today,
+          completed: true,
+          notes: `Streak day ${currentStreak + 1}`
+        });
+      }
+    }
+  };
+  // ─── END STREAK TRACKING ───
   const[genCount,setGenCount]=useState(0);const[isPaid,setIsPaid]=useState(false);const[planHistory,setPlanHistory]=useState([]);const[planCreatedAt,setPlanCreatedAt]=useState(null);const[expired,setExpired]=useState(false);
   const[showA2HS,setShowA2HS]=useState(true);
 
@@ -2476,7 +2662,7 @@ ${(plan.grocery_list || []).length > 0 ? `
     {screen === "preview" && <PreviewScreen plan={plan} answers={answers} user={user} isPaid={isPaid} onUnlock={() => setScreen("dashboard")} />}
     {screen === "payment-success" && <PaymentSuccessScreen user={user} onContinue={() => setScreen("dashboard")} />}
     {screen === "limit" && <LimitScreen genCount={genCount} onUpgrade={onUpgrade} onHome={reset} expired={expired} user={user} onSignupDifferent={signupDifferent} />}
-    {screen === "dashboard" && <DashScreen plan={plan} answers={answers} user={user} onRegen={onRegen} onReset={reset} isPaid={isPaid} genCount={genCount} onUpgrade={onUpgrade} planHistory={planHistory} switchPlan={switchPlan} planCreatedAt={planCreatedAt} generateWeek={generateWeek} weekGenerating={weekGenerating} deletePlan={deletePlan} onClearOldPlans={onClearOldPlans} generatePDF={generatePDF} />}
+    {screen === "dashboard" && <DashScreen plan={plan} answers={answers} user={user} onRegen={onRegen} onReset={reset} isPaid={isPaid} genCount={genCount} onUpgrade={onUpgrade} planHistory={planHistory} switchPlan={switchPlan} planCreatedAt={planCreatedAt} generateWeek={generateWeek} weekGenerating={weekGenerating} deletePlan={deletePlan} onClearOldPlans={onClearOldPlans} generatePDF={generatePDF} checkIns={checkIns} hasCheckedInToday={hasCheckedInToday} currentStreak={currentStreak} toggleCheckIn={toggleCheckIn} />}
     {showA2HS && screen === "dashboard" && <AddToHomePrompt onDismiss={() => setShowA2HS(false)} />}
   </div>;
 }
