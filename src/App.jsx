@@ -442,20 +442,11 @@ const QUIZ = [
   {id:"focus",q:"Any special focus areas?",sub:"Select all that apply",multi:true,opts:[{l:"High Protein",e:"💪"},{l:"Anti-Inflammatory",e:"🌿"},{l:"Low Carb",e:"🥗"},{l:"Iron-Rich",e:"🫘"},{l:"Gut-Friendly",e:"🦠"},{l:"Hormone Support",e:"🌸"}]},
 ];
 
-const ETSY = [
-  {id:1,name:"21-Day Cortisol Reset for Women",price:"$5.69",og:"$11.39",tags:["Balance Hormones","Hormone Support","Anti-Inflammatory"],url:"https://fitwithhiral.etsy.com/ca/listing/4488228680/21-day-cortisol-reset-for-women-reduce",e:"🧘"},
-  {id:2,name:"Cycle Sync Wellness Plan",price:"$5.69",og:"$11.39",tags:["Balance Hormones","Hormone Support"],url:"https://fitwithhiral.etsy.com/ca/listing/4486631490/cycle-sync-wellness-plan-for-women",e:"🌸"},
-  {id:3,name:"High Protein Vegetarian Fat Loss Plan",price:"$5.69",og:"$11.39",tags:["Lose Weight","High Protein","Build Strength"],url:"https://fitwithhiral.etsy.com/ca/listing/4486564199/high-protein-vegetarian-fat-loss-plan-28",e:"🥗"},
-  {id:4,name:"14-Day Gut Health Reset for Women",price:"$5.69",og:"$11.39",tags:["Improve Digestion","Gut-Friendly","Anti-Inflammatory"],url:"https://fitwithhiral.etsy.com/ca/listing/4486013197/14-day-gut-health-reset-for-women",e:"🌿"},
-];
-
 // ─── UI HELPERS ───
 const pf = "Playfair Display"; const dm = "DM Sans";
 function Fi({children,delay=0,s}){const[v,setV]=useState(false);useEffect(()=>{const t=setTimeout(()=>setV(true),delay);return()=>clearTimeout(t)},[delay]); return <div style={{opacity:v?1:0,transform:v?"translateY(0)":"translateY(14px)",transition:"all 0.5s cubic-bezier(0.22,1,0.36,1)",...s}}>{children}</div>}
 function Logo({s="md"}){const z=s==="sm"?16:s==="lg"?28:20; return <div style={{display:"flex",alignItems:"center",gap:6}}><div style={{width:z,height:z,borderRadius:"50%",background:`linear-gradient(135deg,${C.coral},${C.peach})`,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{color:"#fff",fontSize:z*.5,fontWeight:700,fontFamily:pf}}>N</span></div><span style={{fontFamily:pf,fontSize:z*.85,fontWeight:600,color:C.dk,letterSpacing:"0.02em"}}>Nourish You</span></div>}
 function Btn({children,onClick,disabled,full,secondary,style:sx}){ return <button onClick={onClick} disabled={disabled} style={{width:full?"100%":"auto",background:disabled?C.peachL:secondary?C.wh:`linear-gradient(135deg,${C.coral},${C.coralL})`,color:disabled?C.mtL:secondary?C.coral:"#fff",border:secondary?`2px solid ${C.coral}`:"none",borderRadius:50,padding:"15px 36px",fontFamily:dm,fontSize:16,fontWeight:600,cursor:disabled?"default":"pointer",transition:"all 0.3s",boxShadow:disabled||secondary?"none":`0 10px 30px ${C.coral}25`,letterSpacing:"0.02em",...sx}}>{children}</button>}
-
-function getRelevantEtsy(a){ return ETSY.filter(p=>p.tags.some(t=>[a.goal,...(a.focus||[])].includes(t))); }
 
 // ─── CONVERSION COMPONENTS ───
 function CountdownTimer({planCreatedAt}) {
@@ -905,7 +896,6 @@ function PreviewScreen({plan,answers,user,isPaid,onUnlock}){
   const[exp,setExp]=useState(null);
   if(!plan?.meal_plan) return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><p style={{fontFamily:dm}}>Loading...</p></div>;
   const day1=plan.meal_plan[0];
-  const rel=getRelevantEtsy(answers);
   return <div style={{minHeight:"100vh",background:C.bg,paddingBottom:40}}>
     <div style={{padding:"16px 18px",display:"flex",justifyContent:"center"}}><Logo/></div>
     <div style={{padding:"0 20px"}}>
@@ -1028,14 +1018,7 @@ function PreviewScreen({plan,answers,user,isPaid,onUnlock}){
         </div>
       </div></Fi>}
 
-      {/* Etsy upsells */}
-      {rel.length>0&&<Fi delay={650}><h3 style={{fontFamily:pf,fontSize:15,fontWeight:600,color:C.dk,marginBottom:8}}>Also recommended for you</h3>
-        <div style={{display:"flex",gap:9,overflowX:"auto",paddingBottom:6}}>{rel.map(p=><a key={p.id} href={p.url} target="_blank" rel="noopener noreferrer" style={{textDecoration:"none",flex:"0 0 auto",width:170,background:C.wh,borderRadius:12,padding:12,boxShadow:"0 1px 8px rgba(0,0,0,.03)"}}>
-          <span style={{fontSize:24}}>{p.e}</span><div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk,marginTop:4}}>{p.name}</div>
-          <div style={{fontFamily:dm,fontSize:13,fontWeight:700,color:C.coral,marginTop:3}}>{p.price} <span style={{fontSize:10,color:C.mtL,textDecoration:"line-through",fontWeight:400}}>{p.og}</span></div>
-          <div style={{fontFamily:dm,fontSize:9,color:C.gr,marginTop:2}}>50% OFF • PDF</div>
-        </a>)}</div>
-      </Fi>}
+      {/* Etsy upsells removed — Etsy products are web-only on nourishyou.ca */}
     </div>
   </div>;
 }
@@ -1059,7 +1042,6 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
   const meals = currentWeekMeals[day]?.meals || [];
   const tCal = meals.reduce((s,m)=>s+(m.cal||0),0);
   const done = meals.filter((_,i)=>chk[`${week}-${day}-${i}`]).length;
-  const rel=getRelevantEtsy(answers);
   const daysPassed = planCreatedAt ? Math.floor((Date.now()-new Date(planCreatedAt).getTime())/(86400000)) : 0;
 
   return <div style={{minHeight:"100vh",background:C.bg,paddingBottom:76}}>
@@ -1427,7 +1409,7 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
           </div>}
 
           {/* Etsy upsells */}
-          {rel.length>0&&<div style={{marginTop:8}}><h4 style={{fontFamily:pf,fontSize:14,fontWeight:600,color:C.dk,marginBottom:6}}>Go deeper with your goals</h4>{rel.slice(0,2).map(p=><a key={p.id} href={p.url} target="_blank" rel="noopener noreferrer" style={{textDecoration:"none",display:"flex",alignItems:"center",gap:10,background:C.wh,borderRadius:11,padding:10,marginBottom:5,boxShadow:"0 1px 5px rgba(0,0,0,.03)",border:`1px solid ${C.peachL}`}}><span style={{fontSize:22}}>{p.e}</span><div style={{flex:1}}><div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.dk}}>{p.name}</div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>PDF • <span style={{color:C.coral,fontWeight:600}}>{p.price}</span></div></div><span style={{fontFamily:dm,fontSize:10,color:C.coral,fontWeight:600}}>View →</span></a>)}</div>}
+          {/* Etsy "Go deeper" upsell removed — Etsy products are web-only on nourishyou.ca */}
           </>}
         </>}
 
@@ -1837,11 +1819,11 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
           </div>
           <p style={{fontFamily:dm,fontSize:11,color:C.mt,lineHeight:1.5,marginBottom:10}}>Have a question, suggestion, or want a custom plan? I'd love to hear from you!</p>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            <a href="mailto:hello@fitwithhiral.com?subject=Nourish%20You%20App%20Help" style={{textDecoration:"none",display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:C.bgW,borderRadius:10}}>
+            <a href="mailto:hello@nourishyou.ca?subject=Nourish%20You%20App%20Help" style={{textDecoration:"none",display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:C.bgW,borderRadius:10}}>
               <span style={{fontSize:14}}>📧</span>
               <div style={{flex:1}}>
                 <div style={{fontFamily:dm,fontSize:11,fontWeight:600,color:C.dk}}>Email Hiral</div>
-                <div style={{fontFamily:dm,fontSize:9,color:C.mtL}}>hello@fitwithhiral.com</div>
+                <div style={{fontFamily:dm,fontSize:9,color:C.mtL}}>hello@nourishyou.ca</div>
               </div>
               <span style={{fontFamily:dm,fontSize:10,color:C.coral,fontWeight:600}}>→</span>
             </a>
@@ -1853,7 +1835,15 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
               </div>
               <span style={{fontFamily:dm,fontSize:10,color:C.coral,fontWeight:600}}>→</span>
             </a>
-            <a href="mailto:hello@fitwithhiral.com?subject=Custom%20Wellness%20Plan%20Inquiry" style={{textDecoration:"none",display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:`linear-gradient(135deg,${C.coral}10,${C.peach}15)`,borderRadius:10,border:`1px dashed ${C.coral}40`}}>
+            <a href="https://ca.pinterest.com/NourishYouStudio/" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none",display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:C.bgW,borderRadius:10}}>
+              <span style={{fontSize:14}}>📌</span>
+              <div style={{flex:1}}>
+                <div style={{fontFamily:dm,fontSize:11,fontWeight:600,color:C.dk}}>Follow on Pinterest</div>
+                <div style={{fontFamily:dm,fontSize:9,color:C.mtL}}>NourishYouStudio</div>
+              </div>
+              <span style={{fontFamily:dm,fontSize:10,color:C.coral,fontWeight:600}}>→</span>
+            </a>
+            <a href="mailto:hello@nourishyou.ca?subject=Custom%20Wellness%20Plan%20Inquiry" style={{textDecoration:"none",display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:`linear-gradient(135deg,${C.coral}10,${C.peach}15)`,borderRadius:10,border:`1px dashed ${C.coral}40`}}>
               <span style={{fontSize:14}}>✨</span>
               <div style={{flex:1}}>
                 <div style={{fontFamily:dm,fontSize:11,fontWeight:600,color:C.dk}}>Request Custom Plan</div>
@@ -1863,7 +1853,7 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
             </a>
           </div>
         </div>
-        <button onClick={()=>window.open("https://www.etsy.com/shop/FitWithHiral","_blank")} style={{width:"100%",background:C.wh,border:`2px solid ${C.peachL}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>🛍️</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Visit Etsy Shop</div></div></button>
+        <button onClick={()=>window.open("https://nourishyou.ca","_blank")} style={{width:"100%",background:C.wh,border:`2px solid ${C.peachL}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>🌐</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Visit Our Website</div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>nourishyou.ca · Wellness vault & resources</div></div></button>
         <button onClick={onReset} style={{width:"100%",background:"none",border:`1px solid ${C.peachL}`,borderRadius:12,padding:"10px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginTop:6}}><span style={{fontSize:14}}>🚪</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.mt}}>Log Out</div></div></button>
       </div>
       <p style={{fontFamily:dm,fontSize:10,color:C.mtL,textAlign:"center",marginTop:20}}>Nourish You by FitWithHiral v1.0</p>
@@ -3074,7 +3064,7 @@ export default function App(){
 </div>
 ${mealsHTML}
 <div class="footer-line">
-  <span>fitwithhiral.com</span>·<span>@fitwithhiral</span>·<span>app.fitwithhiral.com</span>
+  <span>nourishyou.ca</span>·<span>@fitwithhiral</span>·<span>app.nourishyou.ca</span>
 </div>
 
 <!-- Workouts Section -->
@@ -3090,7 +3080,7 @@ ${(plan.workout_plan || []).length > 0 ? `
   </div>
   ${workoutsHTML}
   <div class="footer-line">
-    <span>fitwithhiral.com</span>·<span>@fitwithhiral</span>·<span>app.fitwithhiral.com</span>
+    <span>nourishyou.ca</span>·<span>@fitwithhiral</span>·<span>app.nourishyou.ca</span>
   </div>
 ` : ''}
 
@@ -3103,7 +3093,7 @@ ${(plan.grocery_list || []).length > 0 ? `
   </div>
   ${groceryHTML}
   <div class="footer-line">
-    <span>fitwithhiral.com</span>·<span>@fitwithhiral</span>·<span>app.fitwithhiral.com</span>
+    <span>nourishyou.ca</span>·<span>@fitwithhiral</span>·<span>app.nourishyou.ca</span>
   </div>
 ` : ''}
 
@@ -3117,14 +3107,14 @@ ${(plan.grocery_list || []).length > 0 ? `
       <span class="link-icon">📱</span>
       <div class="link-info">
         <div class="link-label">App</div>
-        <div class="link-value">app.fitwithhiral.com</div>
+        <div class="link-value">app.nourishyou.ca</div>
       </div>
     </div>
     <div class="link-card">
       <span class="link-icon">🌐</span>
       <div class="link-info">
         <div class="link-label">Website</div>
-        <div class="link-value">fitwithhiral.com</div>
+        <div class="link-value">nourishyou.ca</div>
       </div>
     </div>
     <div class="link-card">
