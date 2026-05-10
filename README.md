@@ -1,4 +1,4 @@
-# Nourish Her — by FitWithHiral
+# Nourish You — by FitWithHiral
 
 AI-powered personalized wellness app with meal plans, workouts & progress tracking.
 
