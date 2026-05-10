@@ -88,11 +88,11 @@ async function mailchimpSubscribe(email, name) {
 // ─── AI PLAN GENERATION ───
 // weekOnly: if specified (1,2,3,4), generates ONLY that week (faster, cheaper, more reliable)
 // otherwise: generates 7 days (free) or 28 days (paid full plan)
+//
+// 🔒 SECURITY UPDATE: Now calls our backend (/api/generate-plan) instead of Anthropic directly.
+// The API key is stored on the Vercel server, never exposed to the browser.
 async function aiGenerate(answers, isPaid = false, weekOnly = null) {
   dlog("🤖 Starting AI generation...", weekOnly ? `(Week ${weekOnly} only)` : "(full plan)");
-  const apiKey = import.meta.env.VITE_ANTHROPIC_KEY;
-  dlog("🔑 API key present?", apiKey ? "YES (length: " + apiKey.length + ", starts with: " + apiKey.substring(0,10) + "...)" : "NO");
-  if (!apiKey) { dwarn("❌ No API key found in environment — using fallback"); return null; }
 
   // Determine total days for this generation request
   const totalDays = weekOnly ? 7 : (isPaid ? 28 : 7);
@@ -175,19 +175,17 @@ The grocery_list must reflect ALL ingredients used across ALL ${totalDays} days 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 120000); // 120-second timeout
 
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
+    // 🔒 Call our backend instead of Anthropic directly
+    // The backend has the API key (server-side, secure)
+    const r = await fetch("/api/generate-plan", {
       method: "POST",
       signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true"
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: weekOnly ? 20000 : (isPaid ? 60000 : 20000),
-        messages: [{ role: "user", content: p }]
+        prompt: p,
+        max_tokens: weekOnly ? 20000 : (isPaid ? 60000 : 20000)
       })
     });
     clearTimeout(timeoutId);
