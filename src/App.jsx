@@ -177,26 +177,26 @@ The grocery_list must reflect ALL ingredients used across ALL ${totalDays} days 
 
     // 🔒 Call our backend instead of Anthropic directly
     // The backend has the API key (server-side, secure)
-    const r = await fetch("/api/generate-plan", {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        prompt: p,
-      
-        max_tokens: weekOnly ? 15000 : (isPaid ? 20000 : 15000)
-      })
-    });
-    clearTimeout(timeoutId);
-    dlog("📥 API responded with status:", r.status);
+  const r = await fetch("/api/generate-plan", {
+  method: "POST",
+  signal: controller.signal,
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    prompt: p,
+    // Reduced max_tokens to fit within Vercel 60s timeout
+    max_tokens: weekOnly ? 15000 : (isPaid ? 20000 : 15000)
+  })
+});
+clearTimeout(timeoutId);
+console.log("📥 API responded with status:", r.status);
 
-    if (!r.ok) {
-      const errTxt = await r.text();
-      dwarn("❌ AI API error:", r.status, errTxt);
-      return null;
-    }
+if (!r.ok) {
+  const errTxt = await r.text();
+  console.error("❌ AI API error:", r.status, errTxt);
+  return null;
+}
 
     const d = await r.json();
     dlog("✅ Got response. Stop reason:", d.stop_reason, "| Tokens used:", d.usage?.output_tokens);
