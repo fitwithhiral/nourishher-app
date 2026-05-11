@@ -1,5 +1,7 @@
 {
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/" }
-  ]
+  "functions": {
+    "api/generate-plan.js": {
+      "maxDuration": 60
+    }
+  }
 }
