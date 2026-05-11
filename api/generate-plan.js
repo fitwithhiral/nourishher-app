@@ -17,7 +17,7 @@
 export const config = {
   // Run as Edge Function for faster cold starts
   // and longer timeout (up to 5 min for plan generation)
-  runtime: 'edge',
+  runtime: 'nodejs',
   maxDuration: 300, // 5 minutes (matches Anthropic's max)
 };
 
