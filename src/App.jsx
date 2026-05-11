@@ -185,7 +185,8 @@ The grocery_list must reflect ALL ingredients used across ALL ${totalDays} days 
       },
       body: JSON.stringify({
         prompt: p,
-        max_tokens: weekOnly ? 20000 : (isPaid ? 60000 : 20000)
+      
+        max_tokens: weekOnly ? 15000 : (isPaid ? 20000 : 15000)
       })
     });
     clearTimeout(timeoutId);
