@@ -1,46 +1,73 @@
 // ============================================
-// VERCEL SERVERLESS FUNCTION — CLAUDE PROXY V3
-// Simpler, more reliable version
+// VERCEL EDGE FUNCTION — CLAUDE PROXY (FINAL)
+// ============================================
+// Location: api/generate-plan.js (in repo ROOT, not inside src/)
+//
+// This uses Edge Runtime which has better timeout behavior on Vercel free tier.
+// Free tier: ~25 seconds max for response
+// To stay within this, we cap tokens at 12000 (enough for 7-day plan)
 // ============================================
 
 export const config = {
-  runtime: 'nodejs',
-  maxDuration: 60,
+  runtime: 'edge',
 };
 
-export default async function handler(req, res) {
-  // CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+export default async function handler(request) {
+  // CORS headers - allow your domains
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
 
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
+  // Handle preflight OPTIONS request
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: corsHeaders });
   }
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+  if (request.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   }
 
-  // Parse body
-  const { prompt, max_tokens } = req.body || {};
+  // Parse request body
+  let body;
+  try {
+    body = await request.json();
+  } catch (e) {
+    return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  const { prompt, max_tokens } = body;
 
   if (!prompt) {
-    return res.status(400).json({ error: 'Missing prompt' });
+    return new Response(JSON.stringify({ error: 'Missing prompt' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   }
 
+  // Get API key from server environment
   const apiKey = process.env.ANTHROPIC_API_KEY;
+
   if (!apiKey) {
-    console.error('ANTHROPIC_API_KEY not found in env');
-    return res.status(500).json({ error: 'API key not configured' });
+    return new Response(JSON.stringify({ error: 'API key not configured on server' }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   }
 
-  const safeMaxTokens = Math.min(parseInt(max_tokens) || 20000, 60000);
-
-  console.log('Calling Anthropic with max_tokens:', safeMaxTokens);
+  // Cap tokens to fit within Vercel free tier timeout
+  // 12000 tokens = ~30-40 seconds generation time = safe for Edge runtime
+  const safeMaxTokens = Math.min(parseInt(max_tokens) || 12000, 16000);
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -51,69 +78,36 @@ export default async function handler(req, res) {
         model: 'claude-haiku-4-5-20251001',
         max_tokens: safeMaxTokens,
         messages: [{ role: 'user', content: prompt }],
-        stream: true,
       }),
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('Anthropic error:', response.status, errText);
-      return res.status(response.status).json({
+    if (!anthropicResponse.ok) {
+      const errText = await anthropicResponse.text();
+      return new Response(JSON.stringify({
         error: 'Anthropic API error',
-        status: response.status,
+        status: anthropicResponse.status,
         details: errText.substring(0, 500),
+      }), {
+        status: anthropicResponse.status,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    // Read stream
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let fullText = '';
-    let stopReason = null;
-    let usage = null;
-    let buffer = '';
+    // Get response and return it directly to client
+    const data = await anthropicResponse.json();
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || ''; // Keep incomplete line
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith('data: ')) continue;
-        const data = trimmed.slice(6);
-        if (data === '[DONE]') continue;
-
-        try {
-          const event = JSON.parse(data);
-          if (event.type === 'content_block_delta' && event.delta?.text) {
-            fullText += event.delta.text;
-          } else if (event.type === 'message_delta') {
-            if (event.delta?.stop_reason) stopReason = event.delta.stop_reason;
-            if (event.usage) usage = event.usage;
-          }
-        } catch (e) {
-          // Skip malformed JSON
-        }
-      }
-    }
-
-    console.log('Generation complete. Length:', fullText.length, 'Stop reason:', stopReason);
-
-    return res.status(200).json({
-      content: [{ type: 'text', text: fullText }],
-      stop_reason: stopReason,
-      usage: usage,
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
-    console.error('Server error:', error.message);
-    return res.status(500).json({
+    return new Response(JSON.stringify({
       error: 'Server error',
       message: error.message,
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 }
