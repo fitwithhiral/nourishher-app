@@ -1,43 +1,16 @@
 // ============================================
-// VERCEL SERVERLESS FUNCTION — CLAUDE PROXY
-// Node.js Runtime Version (works with free Vercel tier)
+// VERCEL SERVERLESS FUNCTION — CLAUDE PROXY V3
+// Simpler, more reliable version
 // ============================================
 
 export const config = {
   runtime: 'nodejs',
-  maxDuration: 60, // 60 seconds (max on free tier)
+  maxDuration: 60,
 };
 
-// Rate limiter
-const rateLimitMap = new Map();
-const RATE_LIMIT_WINDOW_MS = 60 * 1000;
-const MAX_REQUESTS_PER_WINDOW = 5;
-
-function checkRateLimit(ip) {
-  const now = Date.now();
-  const userRecord = rateLimitMap.get(ip) || { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS };
-  if (now > userRecord.resetAt) {
-    userRecord.count = 0;
-    userRecord.resetAt = now + RATE_LIMIT_WINDOW_MS;
-  }
-  userRecord.count++;
-  rateLimitMap.set(ip, userRecord);
-  return userRecord.count <= MAX_REQUESTS_PER_WINDOW;
-}
-
 export default async function handler(req, res) {
-  // ─── CORS ───
-  const origin = req.headers.origin || '';
-  const allowedOrigins = [
-    'https://app.nourishyou.ca',
-    'https://nourishyou.ca',
-    'https://app.fitwithhiral.com',
-    'http://localhost:3000',
-    'http://localhost:5173',
-  ];
-
-  res.setHeader('Access-Control-Allow-Origin',
-    allowedOrigins.includes(origin) ? origin : 'https://app.nourishyou.ca');
+  // CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
@@ -49,28 +22,25 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // ─── RATE LIMITING ───
-  const ip = req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || 'unknown';
-  if (!checkRateLimit(ip)) {
-    return res.status(429).json({ error: 'Too many requests. Please wait a minute.' });
+  // Parse body
+  const { prompt, max_tokens } = req.body || {};
+
+  if (!prompt) {
+    return res.status(400).json({ error: 'Missing prompt' });
   }
 
-  // ─── VALIDATE ───
-  const { prompt, max_tokens } = req.body || {};
-  if (!prompt || typeof prompt !== 'string') {
-    return res.status(400).json({ error: 'Missing or invalid prompt' });
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    console.error('ANTHROPIC_API_KEY not found in env');
+    return res.status(500).json({ error: 'API key not configured' });
   }
 
   const safeMaxTokens = Math.min(parseInt(max_tokens) || 20000, 60000);
-  const apiKey = process.env.ANTHROPIC_API_KEY;
 
-  if (!apiKey) {
-    return res.status(500).json({ error: 'Server configuration error' });
-  }
+  console.log('Calling Anthropic with max_tokens:', safeMaxTokens);
 
-  // ─── CALL ANTHROPIC WITH STREAMING ───
   try {
-    const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -85,32 +55,36 @@ export default async function handler(req, res) {
       }),
     });
 
-    if (!anthropicResponse.ok) {
-      const errTxt = await anthropicResponse.text();
-      console.error('Anthropic API error:', anthropicResponse.status, errTxt);
-      return res.status(anthropicResponse.status).json({
-        error: 'AI service error',
-        details: anthropicResponse.status,
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('Anthropic error:', response.status, errText);
+      return res.status(response.status).json({
+        error: 'Anthropic API error',
+        status: response.status,
+        details: errText.substring(0, 500),
       });
     }
 
-    // Read the stream
-    const reader = anthropicResponse.body.getReader();
+    // Read stream
+    const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let fullText = '';
     let stopReason = null;
     let usage = null;
+    let buffer = '';
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split('\n');
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || ''; // Keep incomplete line
 
       for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const data = line.slice(6).trim();
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data: ')) continue;
+        const data = trimmed.slice(6);
         if (data === '[DONE]') continue;
 
         try {
@@ -122,10 +96,12 @@ export default async function handler(req, res) {
             if (event.usage) usage = event.usage;
           }
         } catch (e) {
-          // Ignore malformed JSON
+          // Skip malformed JSON
         }
       }
     }
+
+    console.log('Generation complete. Length:', fullText.length, 'Stop reason:', stopReason);
 
     return res.status(200).json({
       content: [{ type: 'text', text: fullText }],
@@ -134,10 +110,10 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error('Generation error:', error.message);
+    console.error('Server error:', error.message);
     return res.status(500).json({
-      error: 'Service temporarily unavailable',
-      details: error.message,
+      error: 'Server error',
+      message: error.message,
     });
   }
 }
