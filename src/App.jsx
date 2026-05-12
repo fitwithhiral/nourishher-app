@@ -2139,13 +2139,12 @@ export default function App(){
     } else {
       // Check in for today
       setCheckIns([...checkIns, today]);
-      // Persist to Supabase
+      // Persist to Supabase (using actual column names from schema)
       if (user?.leadId) {
         sbInsert("tracking", {
           lead_id: user.leadId,
-          tracking_date: today,
-          completed: true,
-          notes: `Streak day ${currentStreak + 1}`
+          tracked_date: today,
+          notes: `Check-in: Streak day ${currentStreak + 1}`
         });
       }
     }
