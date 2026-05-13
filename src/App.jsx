@@ -2852,9 +2852,10 @@ export default function App(){
       const dbPlan = allPlans.find(p => p.created_at === h.createdAt);
 
       if (dbPlan) {
+        const authHeaders = await getAuthHeaders();
         const r = await fetch(`${SB_URL}/rest/v1/plans?id=eq.${dbPlan.id}`, {
           method: "DELETE",
-          headers: { ...sbHeaders, "Prefer": "return=minimal" }
+          headers: { ...authHeaders, "Prefer": "return=minimal" }
         });
         if (!r.ok) {
           dwarn("Delete failed with status:", r.status, await r.text());
@@ -2888,11 +2889,12 @@ export default function App(){
       // Delete each plan and verify response
       let successCount = 0;
       let failCount = 0;
+      const authHeaders = await getAuthHeaders();
       for (const p of toDelete) {
         try {
           const r = await fetch(`${SB_URL}/rest/v1/plans?id=eq.${p.id}`, {
             method: "DELETE",
-            headers: { ...sbHeaders, "Prefer": "return=minimal" }
+            headers: { ...authHeaders, "Prefer": "return=minimal" }
           });
           if (r.ok) {
             successCount++;
