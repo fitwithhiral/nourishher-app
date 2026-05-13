@@ -5,8 +5,8 @@ import { useState, useEffect, useRef } from "react";
 // Logs only show when DEBUG=true. Set to false for production.
 // To enable debugging in production temporarily, change to: const DEBUG = true;
 const DEBUG = false;
-const dlog = (...args) => { if (DEBUG) dlog(...args); };
-const dwarn = (...args) => { if (DEBUG) dwarn(...args); };
+const dlog = (...args) => { if (DEBUG) console.log(...args); };
+const dwarn = (...args) => { if (DEBUG) console.warn(...args); };
 // Errors always show — they help users get help when something breaks
 const derror = (...args) => console.error(...args);
 
@@ -18,6 +18,103 @@ const MAX_FREE_GENS = 3;
 const MAX_PAID_GENS = 10;
 const FREE_ACCESS_DAYS = 7;
 const PAID_ACCESS_DAYS = 28;
+
+// ─── SUPABASE AUTH CLIENT (CDN-LOADED) ───
+// We load Supabase JS via CDN to avoid needing npm install
+// This creates a global `supabase` client that handles auth + database
+let supabaseClient = null;
+let supabaseReady = null; // Promise that resolves when client is ready
+
+function loadSupabaseClient() {
+  if (supabaseReady) return supabaseReady;
+
+  supabaseReady = new Promise((resolve, reject) => {
+    // Check if already loaded
+    if (window.supabase && window.supabase.createClient) {
+      supabaseClient = window.supabase.createClient(SB_URL, SB_KEY, {
+        auth: {
+          autoRefreshToken: true,
+          persistSession: true,
+          detectSessionInUrl: true,
+        }
+      });
+      resolve(supabaseClient);
+      return;
+    }
+
+    // Load from CDN
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js";
+    script.async = true;
+    script.onload = () => {
+      if (window.supabase && window.supabase.createClient) {
+        supabaseClient = window.supabase.createClient(SB_URL, SB_KEY, {
+          auth: {
+            autoRefreshToken: true,
+            persistSession: true,
+            detectSessionInUrl: true,
+          }
+        });
+        resolve(supabaseClient);
+      } else {
+        reject(new Error("Supabase library loaded but createClient not available"));
+      }
+    };
+    script.onerror = () => reject(new Error("Failed to load Supabase library from CDN"));
+    document.head.appendChild(script);
+  });
+
+  return supabaseReady;
+}
+
+// Returns the Supabase client (loads it if needed)
+async function getSupabase() {
+  if (supabaseClient) return supabaseClient;
+  return await loadSupabaseClient();
+}
+
+// Send magic link to user's email
+async function sendMagicLink(email) {
+  try {
+    const sb = await getSupabase();
+    const { data, error } = await sb.auth.signInWithOtp({
+      email: email,
+      options: {
+        emailRedirectTo: window.location.origin,
+      }
+    });
+    if (error) {
+      derror("Magic link error:", error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (e) {
+    derror("Magic link failed:", e);
+    return { success: false, error: e.message };
+  }
+}
+
+// Get current authenticated user (or null)
+async function getAuthUser() {
+  try {
+    const sb = await getSupabase();
+    const { data: { user } } = await sb.auth.getUser();
+    return user;
+  } catch (e) {
+    derror("Get auth user failed:", e);
+    return null;
+  }
+}
+
+// Sign out
+async function signOutAuth() {
+  try {
+    const sb = await getSupabase();
+    await sb.auth.signOut();
+  } catch (e) {
+    derror("Sign out failed:", e);
+  }
+}
 
 // ─── THEME ───
 const C = { bg:"#FFF9F5", bgW:"#FFF0E8", coral:"#E8735A", coralL:"#F09880", peach:"#F4A77A", peachL:"#FBDCC8", blush:"#FFE4D6", rose:"#C4687A", gold:"#D4A057", dk:"#1A1A1A", mt:"#6B5E5A", mtL:"#9B8E8A", wh:"#FFFFFF", gr:"#7CB88A", grL:"#E8F5EC", bl:"#5BA4CF" };
@@ -37,27 +134,52 @@ const CSS = `@import url('https://fonts.googleapis.com/css2?family=Playfair+Disp
 .fade-scale{animation:fadeScale 0.4s ease}
 input:focus{outline:none;border-color:${C.coral}!important}`;
 
-// ─── SUPABASE ───
+// ─── SUPABASE DATABASE HELPERS ───
+// These now use the authenticated Supabase client when user is logged in.
+// Fall back to anon-key fetch for operations that work without auth (like reading own data via RLS).
 const sbHeaders = { "Content-Type":"application/json", apikey:SB_KEY, Authorization:`Bearer ${SB_KEY}` };
+
+// Build headers using the current user's auth token if available
+async function getAuthHeaders() {
+  try {
+    const sb = await getSupabase();
+    const { data: { session } } = await sb.auth.getSession();
+    if (session?.access_token) {
+      return {
+        "Content-Type": "application/json",
+        apikey: SB_KEY,
+        Authorization: `Bearer ${session.access_token}`
+      };
+    }
+  } catch (e) { dwarn("getAuthHeaders error:", e); }
+  return sbHeaders; // Fallback to anon
+}
+
 async function sbInsert(t, d) {
   try {
-    const r = await fetch(`${SB_URL}/rest/v1/${t}`, { method:"POST", headers:{...sbHeaders, Prefer:"return=representation,resolution=merge-duplicates"}, body:JSON.stringify(d) });
+    const headers = await getAuthHeaders();
+    const r = await fetch(`${SB_URL}/rest/v1/${t}`, { method:"POST", headers:{...headers, Prefer:"return=representation,resolution=merge-duplicates"}, body:JSON.stringify(d) });
     const j = await r.json(); return j?.[0] || null;
   } catch(e) { dwarn("DB insert error:", e); return null; }
 }
 async function sbUpdate(t, id, d) {
-  try { await fetch(`${SB_URL}/rest/v1/${t}?id=eq.${id}`, { method:"PATCH", headers:sbHeaders, body:JSON.stringify(d) }); } catch(e) { dwarn("DB update:", e); }
+  try {
+    const headers = await getAuthHeaders();
+    await fetch(`${SB_URL}/rest/v1/${t}?id=eq.${id}`, { method:"PATCH", headers, body:JSON.stringify(d) });
+  } catch(e) { dwarn("DB update:", e); }
 }
 async function sbFind(t, col, val) {
   try {
-    const r = await fetch(`${SB_URL}/rest/v1/${t}?${col}=eq.${encodeURIComponent(val)}&order=created_at.desc&limit=1`, { headers:sbHeaders });
+    const headers = await getAuthHeaders();
+    const r = await fetch(`${SB_URL}/rest/v1/${t}?${col}=eq.${encodeURIComponent(val)}&order=created_at.desc&limit=1`, { headers });
     const j = await r.json(); return j?.[0] || null;
   } catch { return null; }
 }
 
 async function sbFindAll(t, col, val) {
   try {
-    const r = await fetch(`${SB_URL}/rest/v1/${t}?${col}=eq.${encodeURIComponent(val)}&order=created_at.desc`, { headers:sbHeaders });
+    const headers = await getAuthHeaders();
+    const r = await fetch(`${SB_URL}/rest/v1/${t}?${col}=eq.${encodeURIComponent(val)}&order=created_at.desc`, { headers });
     return await r.json() || [];
   } catch { return []; }
 }
@@ -656,55 +778,83 @@ function Testimonials() {
   </div>;
 }
 
+// ─── EMAIL SCREEN — MAGIC LINK VERSION ───
+// Users now log in via a magic link sent to their email instead of entering email directly.
+// This provides proper authentication and protects database access.
 function EmailScreen({onSubmit,onLogin}){
   const[name,setName]=useState("");const[email,setEmail]=useState("");const[loading,setLoading]=useState(false);const[err,setErr]=useState("");const[mode,setMode]=useState("signup");
+  const[sent,setSent]=useState(false); // Show "check your email" screen after sending
+
   const go=async()=>{
     if(!email.trim()){setErr("Please enter your email");return}
     if(!/\S+@\S+\.\S+/.test(email)){setErr("Please enter a valid email");return}
+    if(mode==="signup" && !name.trim()){setErr("Please enter your name");return}
+
     setLoading(true);setErr("");
     const normalizedEmail = email.trim().toLowerCase();
 
-    if(mode==="login"){
-      const ex=await sbFind("leads","email",normalizedEmail);
-      setLoading(false);
-      if(ex){onLogin(ex)}else{setErr("No account found. Try signing up!");setMode("signup")}
-      return;
-    }
+    // Save name + intent in localStorage so we can use them after magic link click
+    try {
+      window.localStorage.setItem("nh_pending_auth", JSON.stringify({
+        email: normalizedEmail,
+        name: name.trim() || null,
+        mode: mode,
+        timestamp: Date.now()
+      }));
+    } catch(e) {}
 
-    // Signup mode — first check if email already exists
-    if(!name.trim()){setErr("Please enter your name");setLoading(false);return}
-
-    const existing = await sbFind("leads", "email", normalizedEmail);
-    if(existing){
-      // Email already registered — auto-login them instead of creating duplicate
-      setLoading(false);
-      onLogin(existing);
-      return;
-    }
-
-    // Email is new — create account
-    let lid=null;
-    try{const l=await sbInsert("leads",{name:name.trim(),email:normalizedEmail});lid=l?.id||null}catch(e){}
-
-    // Subscribe to Mailchimp (fires welcome email automation)
-    mailchimpSubscribe(normalizedEmail, name.trim()).catch(function(){}); // Don't await — runs in background
-
+    // Send the magic link via Supabase Auth
+    const result = await sendMagicLink(normalizedEmail);
     setLoading(false);
-    onSubmit({name:name.trim(),email:normalizedEmail,leadId:lid});
+
+    if (result.success) {
+      setSent(true); // Show "check your email" screen
+    } else {
+      setErr(result.error || "Failed to send magic link. Please try again.");
+    }
   };
+
+  // ─── "CHECK YOUR EMAIL" SCREEN ───
+  if (sent) {
+    return <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column",padding:24}}>
+      <div style={{padding:"12px 0"}}><Logo s="sm"/></div>
+      <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",textAlign:"center",maxWidth:420,margin:"0 auto"}}>
+        <Fi delay={80}>
+          <span style={{fontSize:64,display:"block",marginBottom:16}}>✉️</span>
+          <h2 style={{fontFamily:pf,fontSize:26,fontWeight:600,color:C.dk,lineHeight:1.2,marginBottom:12}}>Check your email!</h2>
+          <p style={{fontFamily:dm,fontSize:15,color:C.mt,lineHeight:1.6,marginBottom:8}}>We sent a magic link to:</p>
+          <p style={{fontFamily:dm,fontSize:15,fontWeight:600,color:C.coral,marginBottom:20,wordBreak:"break-all"}}>{email}</p>
+          <div style={{background:C.wh,borderRadius:14,padding:"18px 16px",border:`1px solid ${C.peachL}`,marginBottom:16,textAlign:"left"}}>
+            <p style={{fontFamily:dm,fontSize:13,color:C.dk,fontWeight:600,marginBottom:8}}>📬 What to do next:</p>
+            <p style={{fontFamily:dm,fontSize:13,color:C.mt,lineHeight:1.6,marginBottom:6}}>1. Open your email inbox</p>
+            <p style={{fontFamily:dm,fontSize:13,color:C.mt,lineHeight:1.6,marginBottom:6}}>2. Find the email from us (subject: "Sign in to NourishYou")</p>
+            <p style={{fontFamily:dm,fontSize:13,color:C.mt,lineHeight:1.6,marginBottom:6}}>3. Click the "Sign In" button in the email</p>
+            <p style={{fontFamily:dm,fontSize:13,color:C.mt,lineHeight:1.6}}>4. You'll be logged in automatically ✨</p>
+          </div>
+          <div style={{background:`${C.gold}15`,borderRadius:12,padding:"12px 14px",border:`1px solid ${C.gold}30`,marginBottom:20}}>
+            <p style={{fontFamily:dm,fontSize:12,color:C.mt,lineHeight:1.5}}><strong style={{color:C.dk}}>📌 Can't find the email?</strong><br/>Check your <strong>spam/junk folder</strong> — sometimes emails land there first. Mark it as "Not spam" so future emails arrive in your inbox.</p>
+          </div>
+          <p style={{fontFamily:dm,fontSize:12,color:C.mtL,marginBottom:14}}>The link expires in 1 hour for your security.</p>
+          <button onClick={()=>{setSent(false);setEmail("");setName("");setErr("")}} style={{background:"none",border:"none",color:C.coral,fontWeight:600,cursor:"pointer",fontFamily:dm,fontSize:13,padding:8}}>← Use a different email</button>
+        </Fi>
+      </div>
+    </div>;
+  }
+
+  // ─── EMAIL ENTRY SCREEN ───
   return <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column",padding:24}}>
     <div style={{padding:"12px 0"}}><Logo s="sm"/></div>
     <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",maxWidth:400}}>
       <Fi delay={80}><span style={{fontSize:36,marginBottom:12,display:"block"}}>{mode==="login"?"👋":"✉️"}</span>
         <h2 style={{fontFamily:pf,fontSize:26,fontWeight:600,color:C.dk,lineHeight:1.2}}>{mode==="login"?"Welcome back!":"Let's personalize\nyour plan"}</h2>
-        <p style={{fontFamily:dm,fontSize:14,color:C.mtL,marginTop:6}}>{mode==="login"?"Log in to access your plan.":"Enter your details to get a meal + workout plan built just for you."}</p>
+        <p style={{fontFamily:dm,fontSize:14,color:C.mtL,marginTop:6}}>{mode==="login"?"We'll send you a magic link to sign in.":"Enter your details and we'll send you a magic link to get started."}</p>
       </Fi>
       <Fi delay={200}>
         <div style={{marginTop:24,display:"flex",flexDirection:"column",gap:12}}>
           {mode==="signup"&&<div><label style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.mt,marginBottom:4,display:"block"}}>First Name</label><input value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Debbie" style={{width:"100%",padding:"13px 16px",borderRadius:12,border:`2px solid ${C.peachL}`,fontFamily:dm,fontSize:15,color:C.dk,background:C.wh}}/></div>}
           <div><label style={{fontFamily:dm,fontSize:12,fontWeight:600,color:C.mt,marginBottom:4,display:"block"}}>Email Address</label><input value={email} onChange={e=>setEmail(e.target.value)} placeholder="debbie@gmail.com" type="email" style={{width:"100%",padding:"13px 16px",borderRadius:12,border:`2px solid ${C.peachL}`,fontFamily:dm,fontSize:15,color:C.dk,background:C.wh}} onKeyDown={e=>e.key==="Enter"&&go()}/></div>
           {err&&<p style={{fontFamily:dm,fontSize:12,color:C.rose}}>{err}</p>}
-          <Btn full onClick={go} disabled={loading}>{loading?"Please wait...":mode==="login"?"Log In →":"Start My Quiz →"}</Btn>
+          <Btn full onClick={go} disabled={loading}>{loading?"Sending magic link...":mode==="login"?"Send Magic Link →":"Send Magic Link →"}</Btn>
           <p style={{fontFamily:dm,fontSize:12,color:C.mtL,textAlign:"center"}}>{mode==="signup"?<>Already have an account? <button onClick={()=>{setMode("login");setErr("")}} style={{background:"none",border:"none",color:C.coral,fontWeight:600,cursor:"pointer",fontFamily:dm,fontSize:12}}>Log in</button></>:<>New here? <button onClick={()=>{setMode("signup");setErr("")}} style={{background:"none",border:"none",color:C.coral,fontWeight:600,cursor:"pointer",fontFamily:dm,fontSize:12}}>Sign up free</button></>}</p>
           <p style={{fontFamily:dm,fontSize:10,color:C.mtL,textAlign:"center"}}>🔒 Your info is safe. No spam, ever.</p>
         </div>
@@ -2074,6 +2224,7 @@ function OnboardingScreen({ onComplete, userName }) {
 // ─── MAIN APP ───
 export default function App(){
   const[screen,setScreen]=useState("welcome");const[step,setStep]=useState(0);const[answers,setAnswers]=useState({});const[user,setUser]=useState(null);const[plan,setPlan]=useState(null);const[progress,setProgress]=useState(0);
+  const[authLoading,setAuthLoading]=useState(true); // True while checking auth state on mount
   const insertedTimestamps = useRef(new Set()); // Prevents duplicate plan inserts from React StrictMode/re-renders
 
   // ─── STREAK TRACKING ───
@@ -2308,81 +2459,173 @@ export default function App(){
   const[showA2HS,setShowA2HS]=useState(true);
 
   // On mount: restore session + check for Stripe payment redirect
+  // ─── INIT: Check auth state + load user data ───
+  // Now uses Supabase Auth instead of just localStorage email lookup
   useEffect(()=>{
     const init = async () => {
       try {
+        setAuthLoading(true);
         const params = new URLSearchParams(window.location.search);
         const isPaymentReturn = params.get("payment") === "success";
 
-        // Try to restore saved session
-        const session = loadSession();
+        // Wait for Supabase client to load and check for auth callback in URL
+        const sb = await getSupabase();
 
-        if (isPaymentReturn && session?.email) {
-          // User just paid — look them up and mark as paid
-          const lead = await sbFind("leads", "email", session.email);
-          if (lead) {
-            await sbUpdate("leads", lead.id, { has_paid: true, paid_at: new Date().toISOString() });
-            setUser({ name: lead.name, email: lead.email, leadId: lead.id });
-            setIsPaid(true);
-            setExpired(false);
-            setGenCount(lead.generation_count || 0);
-            setAnswers({ goal: lead.goal, diet: lead.diet_type, fitness: lead.fitness_level, time: lead.cooking_time, focus: lead.focus_areas });
-            // Load ALL their plans (most recent first)
-            const allPlans = await sbFindAll("plans", "lead_id", lead.id);
-            if (allPlans.length > 0) {
-              const ep = allPlans[0]; // Most recent
-              setPlan({ meal_plan: ep.meal_plan, workout_plan: ep.workout_plan, grocery_list: ep.grocery_list });
-              setPlanCreatedAt(ep.created_at);
-              // Build history from all plans (oldest first for numbering)
-              const history = [...allPlans].reverse().map((p, i) => ({
-                plan: { meal_plan: p.meal_plan, workout_plan: p.workout_plan, grocery_list: p.grocery_list },
-                answers: { goal: lead.goal, diet: lead.diet_type, fitness: lead.fitness_level, time: lead.cooking_time, focus: lead.focus_areas },
-                createdAt: p.created_at,
-                label: "Plan " + (i + 1) + ": " + (lead.goal || "Plan") + " (" + dietToString(lead.diet_type) + ")"
-              }));
-              setPlanHistory(history);
-            }
-            saveSession({ email: lead.email, name: lead.name, leadId: lead.id, isPaid: true });
-            setScreen("payment-success");
-            // Clean URL
-            window.history.replaceState({}, "", window.location.pathname);
+        // The Supabase client auto-detects the magic link tokens in the URL hash
+        // Wait a brief moment for it to process
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        // Check if user is authenticated
+        const authUser = await getAuthUser();
+
+        if (!authUser) {
+          // Not authenticated — clear any old session and show welcome screen
+          clearSession();
+          setAuthLoading(false);
+          return;
+        }
+
+        // ─── AUTHENTICATED ───
+        // User is logged in via magic link. Find or migrate their lead record.
+        const authEmail = authUser.email.toLowerCase();
+
+        // Try to find their existing lead record by email
+        let lead = await sbFind("leads", "email", authEmail);
+
+        // Get pending auth info (from the email entry screen)
+        let pendingAuth = null;
+        try {
+          const pa = window.localStorage.getItem("nh_pending_auth");
+          if (pa) pendingAuth = JSON.parse(pa);
+        } catch(e) {}
+
+        if (lead) {
+          // ─── EXISTING USER (migration) ───
+          // If their lead doesn't have auth_user_id yet, link it now
+          if (!lead.auth_user_id) {
+            try {
+              await sbUpdate("leads", lead.id, { auth_user_id: authUser.id });
+              lead.auth_user_id = authUser.id;
+            } catch(e) { dwarn("Failed to link auth_user_id:", e); }
           }
-        } else if (session?.email) {
-          // Returning user — auto-login
-          const lead = await sbFind("leads", "email", session.email);
+        } else {
+          // ─── BRAND NEW USER ───
+          // Create their lead record now with auth_user_id linked
+          const newName = pendingAuth?.name || authUser.user_metadata?.name || authEmail.split("@")[0];
+          try {
+            const newLead = await sbInsert("leads", {
+              name: newName,
+              email: authEmail,
+              auth_user_id: authUser.id
+            });
+            lead = newLead;
+          } catch(e) { dwarn("Failed to create lead:", e); }
+
+          // Subscribe new users to Mailchimp
           if (lead) {
-            setUser({ name: lead.name, email: lead.email, leadId: lead.id });
-            setGenCount(lead.generation_count || 0);
-            setIsPaid(lead.has_paid || false);
-            setAnswers({ goal: lead.goal, diet: lead.diet_type, fitness: lead.fitness_level, time: lead.cooking_time, focus: lead.focus_areas });
-            const allPlans = await sbFindAll("plans", "lead_id", lead.id);
-            if (allPlans.length > 0) {
-              const ep = allPlans[0]; // Most recent
-              setPlan({ meal_plan: ep.meal_plan, workout_plan: ep.workout_plan, grocery_list: ep.grocery_list });
-              setPlanCreatedAt(ep.created_at);
-              // Build history from all saved plans
-              const history = [...allPlans].reverse().map((p, i) => ({
-                plan: { meal_plan: p.meal_plan, workout_plan: p.workout_plan, grocery_list: p.grocery_list },
-                answers: { goal: lead.goal, diet: lead.diet_type, fitness: lead.fitness_level, time: lead.cooking_time, focus: lead.focus_areas },
-                createdAt: p.created_at,
-                label: "Plan " + (i + 1) + ": " + (lead.goal || "Plan") + " (" + dietToString(lead.diet_type) + ")"
-              }));
-              setPlanHistory(history);
-              // Check expiry: 7 days free, 28 days paid
-              if (ep.created_at) {
-                const daysPassed = Math.floor((new Date() - new Date(ep.created_at)) / (86400000));
-                const limit = lead.has_paid ? PAID_ACCESS_DAYS : FREE_ACCESS_DAYS;
-                if (daysPassed >= limit) { setExpired(true); setScreen("limit"); return; }
-              }
-              setScreen("dashboard");
-            } else {
-              setScreen("quiz");
-            }
+            mailchimpSubscribe(authEmail, newName).catch(function(){});
           }
         }
-      } catch(e) { dwarn("Init error:", e); }
+
+        // Clear pending auth data — no longer needed
+        try { window.localStorage.removeItem("nh_pending_auth"); } catch(e) {}
+
+        if (!lead) {
+          // Something went wrong creating/finding lead
+          derror("Could not load or create lead record");
+          setAuthLoading(false);
+          return;
+        }
+
+        // ─── LOAD USER DATA ───
+        setUser({ name: lead.name, email: lead.email, leadId: lead.id });
+        setGenCount(lead.generation_count || 0);
+        setIsPaid(lead.has_paid || false);
+        setAnswers({ goal: lead.goal, diet: lead.diet_type, fitness: lead.fitness_level, time: lead.cooking_time, focus: lead.focus_areas });
+
+        // Handle Stripe payment return
+        if (isPaymentReturn) {
+          await sbUpdate("leads", lead.id, { has_paid: true, paid_at: new Date().toISOString() });
+          setIsPaid(true);
+          setExpired(false);
+          const allPlans = await sbFindAll("plans", "lead_id", lead.id);
+          if (allPlans.length > 0) {
+            const ep = allPlans[0];
+            setPlan({ meal_plan: ep.meal_plan, workout_plan: ep.workout_plan, grocery_list: ep.grocery_list });
+            setPlanCreatedAt(ep.created_at);
+            const history = [...allPlans].reverse().map((p, i) => ({
+              plan: { meal_plan: p.meal_plan, workout_plan: p.workout_plan, grocery_list: p.grocery_list },
+              answers: { goal: lead.goal, diet: lead.diet_type, fitness: lead.fitness_level, time: lead.cooking_time, focus: lead.focus_areas },
+              createdAt: p.created_at,
+              label: "Plan " + (i + 1) + ": " + (lead.goal || "Plan") + " (" + dietToString(lead.diet_type) + ")"
+            }));
+            setPlanHistory(history);
+          }
+          saveSession({ email: lead.email, name: lead.name, leadId: lead.id, isPaid: true });
+          setScreen("payment-success");
+          window.history.replaceState({}, "", window.location.pathname);
+          setAuthLoading(false);
+          return;
+        }
+
+        // Load all their plans
+        const allPlans = await sbFindAll("plans", "lead_id", lead.id);
+        if (allPlans.length > 0) {
+          const ep = allPlans[0];
+          setPlan({ meal_plan: ep.meal_plan, workout_plan: ep.workout_plan, grocery_list: ep.grocery_list });
+          setPlanCreatedAt(ep.created_at);
+          const history = [...allPlans].reverse().map((p, i) => ({
+            plan: { meal_plan: p.meal_plan, workout_plan: p.workout_plan, grocery_list: p.grocery_list },
+            answers: { goal: lead.goal, diet: lead.diet_type, fitness: lead.fitness_level, time: lead.cooking_time, focus: lead.focus_areas },
+            createdAt: p.created_at,
+            label: "Plan " + (i + 1) + ": " + (lead.goal || "Plan") + " (" + dietToString(lead.diet_type) + ")"
+          }));
+          setPlanHistory(history);
+          if (ep.created_at) {
+            const daysPassed = Math.floor((new Date() - new Date(ep.created_at)) / (86400000));
+            const limit = lead.has_paid ? PAID_ACCESS_DAYS : FREE_ACCESS_DAYS;
+            if (daysPassed >= limit) { setExpired(true); setScreen("limit"); setAuthLoading(false); return; }
+          }
+          setScreen("dashboard");
+        } else {
+          // No plans yet — send them to quiz
+          setScreen("quiz");
+        }
+
+        saveSession({ email: lead.email, name: lead.name, leadId: lead.id, isPaid: lead.has_paid || false });
+
+        // Clean magic link tokens from URL
+        if (window.location.hash.includes("access_token") || window.location.search.includes("code=")) {
+          window.history.replaceState({}, "", window.location.pathname);
+        }
+      } catch(e) {
+        derror("Init error:", e);
+      } finally {
+        setAuthLoading(false);
+      }
     };
     init();
+
+    // Listen for auth state changes (login/logout)
+    let authSubscription = null;
+    getSupabase().then(sb => {
+      const { data } = sb.auth.onAuthStateChange((event, session) => {
+        if (event === "SIGNED_OUT") {
+          clearSession();
+          setUser(null);
+          setPlan(null);
+          setPlanHistory([]);
+          setIsPaid(false);
+          setExpired(false);
+          setScreen("welcome");
+        }
+      });
+      authSubscription = data?.subscription;
+    });
+
+    return () => {
+      if (authSubscription) authSubscription.unsubscribe();
+    };
   }, []);
 
   // Check expiry: 7 days for free, 28 days for paid
@@ -3140,8 +3383,9 @@ ${(plan.grocery_list || []).length > 0 ? `
     setTimeout(() => { try { w.focus(); } catch(e) {} }, 300);
   };
 
-  const reset = () => {
+  const reset = async () => {
     clearSession();
+    await signOutAuth(); // Sign out from Supabase Auth
     setScreen("welcome"); setStep(0); setAnswers({}); setUser(null); setPlan(null); setProgress(0); setGenCount(0); setIsPaid(false); setPlanHistory([]); setExpired(false);
   };
 
@@ -3150,11 +3394,25 @@ ${(plan.grocery_list || []).length > 0 ? `
     setScreen("dashboard");
   };
 
-  const signupDifferent = () => {
+  const signupDifferent = async () => {
     clearSession();
+    await signOutAuth(); // Sign out from Supabase Auth
     setStep(0); setAnswers({}); setUser(null); setPlan(null); setProgress(0); setGenCount(0); setIsPaid(false); setPlanHistory([]); setExpired(false);
     setScreen("email");
   };
+
+  // ─── AUTH LOADING SCREEN ───
+  // Shown while we're checking if user is logged in (especially after clicking magic link)
+  if (authLoading) {
+    return <div style={{ maxWidth: 480, margin: "0 auto", background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <style>{CSS}</style>
+      <div style={{textAlign: "center"}}>
+        <div style={{fontSize: 48, marginBottom: 16}}>✨</div>
+        <h2 style={{fontFamily: pf, fontSize: 22, fontWeight: 600, color: C.dk, marginBottom: 8}}>Signing you in...</h2>
+        <p style={{fontFamily: dm, fontSize: 13, color: C.mt}}>Just a moment while we load your wellness journey</p>
+      </div>
+    </div>;
+  }
 
   // If expired, show limit screen
   if (expired && !isPaid && screen === "dashboard") {
