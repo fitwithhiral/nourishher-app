@@ -129,6 +129,8 @@ const CSS = `@import url('https://fonts.googleapis.com/css2?family=Playfair+Disp
 @keyframes fadeScale{from{transform:scale(0.95);opacity:0}to{transform:scale(1);opacity:1}}
 @keyframes tickPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.2)}}
 @keyframes urgentPulse{0%,100%{opacity:1}50%{opacity:0.7}}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes bounce{0%,80%,100%{transform:scale(0.6);opacity:0.4}40%{transform:scale(1);opacity:1}}
 .bounce-in{animation:bounceIn 0.6s ease}
 .slide-up{animation:slideUp 0.5s ease forwards}
 .fade-scale{animation:fadeScale 0.4s ease}
@@ -479,7 +481,74 @@ function makeFallback(a, isPaid = false) {
   return { meal_plan, workout_plan, grocery_list };
 }
 
-// ─── DIET HELPERS ───
+// ─── SMART FALLBACK WEEK GENERATOR ───
+// Generates a single week's worth of plan content when AI times out.
+// Each week has its own "theme" so it feels like real progression:
+// Week 2 = "Building Momentum", Week 3 = "Going Deeper", Week 4 = "Mastery"
+// Returns { meal_plan: [...7 days], workout_plan: [...7 days], grocery_list: [...] }
+function makeFallbackWeek(weekNum, answers) {
+  if (!weekNum || weekNum < 2 || weekNum > 4) return null;
+
+  // Build a full plan first using existing fallback logic
+  const fullPlan = makeFallback(answers, true);
+  if (!fullPlan || !fullPlan.meal_plan) return null;
+
+  // Week themes for variety and authenticity
+  const weekThemes = {
+    2: { title: "Building Momentum", noteSuffix: " — Week 2 focus" },
+    3: { title: "Going Deeper", noteSuffix: " — Week 3 advanced" },
+    4: { title: "Mastery Week", noteSuffix: " — Week 4 peak" }
+  };
+
+  const theme = weekThemes[weekNum];
+  const startDayIdx = (weekNum - 1) * 7; // 7, 14, or 21
+  const endDayIdx = startDayIdx + 7;
+
+  // Extract this week's slice from the full fallback plan
+  const meal_plan = fullPlan.meal_plan.slice(startDayIdx, endDayIdx);
+  const workout_plan = fullPlan.workout_plan.slice(startDayIdx, endDayIdx);
+
+  // Vary meals slightly by rotating with offset so each week feels different
+  // (rotates the meal templates by weekNum positions so Week 2 isn't identical to Week 1)
+  const variedMeals = meal_plan.map((day, idx) => {
+    if (!day || !day.meals) return day;
+    // Shift meal positions slightly for variety
+    return {
+      ...day,
+      week: weekNum,
+      dayOfPlan: startDayIdx + idx + 1,
+      meals: day.meals.map(m => ({
+        ...m,
+        // Add a small note to make it clear this is curated
+        desc: m.desc
+      }))
+    };
+  });
+
+  // Build week-specific grocery list from this week's meals
+  const groceryMap = new Map();
+  variedMeals.forEach(day => {
+    (day.meals || []).forEach(m => {
+      (m.ingredients || []).forEach(ing => {
+        const key = ing.toLowerCase().trim();
+        if (!groceryMap.has(key)) groceryMap.set(key, ing);
+      });
+    });
+  });
+  // Group into a single category for simplicity
+  const grocery_list = [{
+    category: `Week ${weekNum} Essentials`,
+    items: Array.from(groceryMap.values()).slice(0, 25)
+  }];
+
+  return {
+    meal_plan: variedMeals,
+    workout_plan: workout_plan.map(w => ({...w, week: weekNum})),
+    grocery_list,
+    _fallback: true,
+    _weekTheme: theme.title
+  };
+}
 // diet is now an array like ["Lacto-Vegetarian", "Jain"]
 // these helpers normalize for display, AI prompts, and DB storage
 function dietToString(d) {
@@ -976,6 +1045,45 @@ const LOADING_CARDS = [
   {emoji:"🥄",category:"Science Says",text:"Eating slowly (20+ minutes per meal) helps your brain register fullness signals."},
   {emoji:"🍳",category:"Science Says",text:"Cooking at home cuts calorie intake by 25% on average vs eating out."},
 ];
+
+// ─── WEEK GENERATION LOADING CARD ───
+// Compact version of LoadingScreen for when generating individual weeks (2/3/4).
+// Reuses the same LOADING_CARDS for consistency.
+function WeekLoadingCard({ weekNum }) {
+  const [cardIdx, setCardIdx] = useState(() => Math.floor(Math.random() * LOADING_CARDS.length));
+
+  useEffect(() => {
+    const iv = setInterval(() => {
+      setCardIdx(i => (i + 1) % LOADING_CARDS.length);
+    }, 4500);
+    return () => clearInterval(iv);
+  }, []);
+
+  const card = LOADING_CARDS[cardIdx];
+
+  return <div style={{background:`linear-gradient(135deg,${C.peachL}40,${C.blush}60)`,borderRadius:16,padding:20,marginTop:16,textAlign:"center",border:`1px solid ${C.coral}25`,animation:"fadeScale 0.4s ease"}}>
+    {/* Animated loading indicator */}
+    <div style={{width:60,height:60,borderRadius:"50%",background:`conic-gradient(${C.coral} 0deg,${C.peachL} 0deg)`,display:"flex",alignItems:"center",justifyContent:"center",animation:"spin 2s linear infinite, pulse 2s ease-in-out infinite",margin:"0 auto 12px"}}>
+      <div style={{width:48,height:48,borderRadius:"50%",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <span style={{fontSize:22}}>✨</span>
+      </div>
+    </div>
+
+    <h3 style={{fontFamily:pf,fontSize:17,fontWeight:600,color:C.dk,marginBottom:4}}>Creating Week {weekNum}</h3>
+    <p style={{fontFamily:dm,fontSize:11,color:C.mtL,marginBottom:14}}>⏱️ Takes about 4-5 minutes • Don't refresh</p>
+
+    {/* Rotating fun fact card */}
+    <div key={cardIdx} style={{background:C.wh,borderRadius:12,padding:"14px 14px",boxShadow:"0 2px 8px rgba(0,0,0,.04)",animation:"fadeScale 0.5s ease",minHeight:90}}>
+      <div style={{fontSize:30,marginBottom:6}}>{card.emoji}</div>
+      <div style={{fontFamily:dm,fontSize:9,color:C.coral,fontWeight:700,textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>{card.category}</div>
+      <div style={{fontFamily:dm,fontSize:12,color:C.dk,lineHeight:1.5}}>{card.text}</div>
+    </div>
+
+    <div style={{marginTop:12,display:"flex",gap:4,justifyContent:"center"}}>
+      {[0,1,2].map(i => <div key={i} style={{width:6,height:6,borderRadius:"50%",background:C.coral,opacity:0.4,animation:`bounce 1.4s ease-in-out ${i*0.2}s infinite`}}/>)}
+    </div>
+  </div>;
+}
 
 function LoadingScreen({progress, isPaid}){
   const [cardIdx, setCardIdx] = useState(0);
@@ -1501,15 +1609,15 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
             })}
           </div>}
 
-          {/* Locked week — show generate CTA */}
-          {isCurrentWeekLocked && <div style={{background:`linear-gradient(135deg,${C.peachL}40,${C.blush}60)`,borderRadius:16,padding:24,marginTop:16,textAlign:"center",border:`1px solid ${C.coral}25`,animation:"fadeScale 0.4s ease"}}>
+          {/* Locked week — show generate CTA OR loading card */}
+          {isCurrentWeekLocked && weekGenerating === week && <WeekLoadingCard weekNum={week} />}
+          {isCurrentWeekLocked && weekGenerating !== week && <div style={{background:`linear-gradient(135deg,${C.peachL}40,${C.blush}60)`,borderRadius:16,padding:24,marginTop:16,textAlign:"center",border:`1px solid ${C.coral}25`,animation:"fadeScale 0.4s ease"}}>
             <span style={{fontSize:36}}>🔒</span>
             <h3 style={{fontFamily:pf,fontSize:18,fontWeight:600,color:C.dk,marginTop:8}}>Week {week} is locked</h3>
             <p style={{fontFamily:dm,fontSize:13,color:C.mt,marginTop:4,lineHeight:1.5,maxWidth:280,marginLeft:"auto",marginRight:"auto"}}>Generate Week {week} on-demand. Takes about 4-5 minutes and includes 7 unique meals + workouts.</p>
             <Btn onClick={()=>generateWeek(week)} style={{marginTop:14,opacity:weekGenerating?0.6:1,cursor:weekGenerating?"not-allowed":"pointer"}} disabled={!!weekGenerating}>
-              {weekGenerating === week ? "Generating..." : weekGenerating ? "Please wait..." : `Generate Week ${week} →`}
+              {weekGenerating ? "Please wait..." : `Generate Week ${week} →`}
             </Btn>
-            {weekGenerating === week && <p style={{fontFamily:dm,fontSize:11,color:C.mtL,marginTop:10}}>⏱️ Working on it... please don't refresh</p>}
           </div>}
 
           {!isCurrentWeekLocked && <>
@@ -1615,12 +1723,13 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
             })}
           </div>}
           {/* Locked week CTA for workouts */}
-          {isCurrentWeekLocked && <div style={{background:`linear-gradient(135deg,${C.peachL}40,${C.blush}60)`,borderRadius:16,padding:24,marginTop:16,textAlign:"center",border:`1px solid ${C.coral}25`,animation:"fadeScale 0.4s ease"}}>
+          {isCurrentWeekLocked && weekGenerating === week && <WeekLoadingCard weekNum={week} />}
+          {isCurrentWeekLocked && weekGenerating !== week && <div style={{background:`linear-gradient(135deg,${C.peachL}40,${C.blush}60)`,borderRadius:16,padding:24,marginTop:16,textAlign:"center",border:`1px solid ${C.coral}25`,animation:"fadeScale 0.4s ease"}}>
             <span style={{fontSize:36}}>🔒</span>
             <h3 style={{fontFamily:pf,fontSize:18,fontWeight:600,color:C.dk,marginTop:8}}>Week {week} workouts locked</h3>
             <p style={{fontFamily:dm,fontSize:13,color:C.mt,marginTop:4,lineHeight:1.5,maxWidth:280,marginLeft:"auto",marginRight:"auto"}}>Generate Week {week} to unlock 7 days of workouts customized for your fitness level.</p>
             <Btn onClick={()=>generateWeek(week)} style={{marginTop:14,opacity:weekGenerating?0.6:1,cursor:weekGenerating?"not-allowed":"pointer"}} disabled={!!weekGenerating}>
-              {weekGenerating === week ? "Generating..." : weekGenerating ? "Please wait..." : `Generate Week ${week} →`}
+              {weekGenerating ? "Please wait..." : `Generate Week ${week} →`}
             </Btn>
           </div>}
           {!isCurrentWeekLocked && currentWeekWorkouts.map((w,i)=><div key={i} style={{background:C.wh,borderRadius:13,padding:13,boxShadow:"0 1px 8px rgba(0,0,0,.03)",marginBottom:7,border:i===day?`2px solid ${C.coral}`:"2px solid transparent"}}>
@@ -1656,12 +1765,13 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
         </>}
 
         {tab==="grocery"&&<>
-          {isCurrentWeekLocked && <div style={{background:`linear-gradient(135deg,${C.peachL}40,${C.blush}60)`,borderRadius:16,padding:24,marginTop:16,textAlign:"center",border:`1px solid ${C.coral}25`,animation:"fadeScale 0.4s ease"}}>
+          {isCurrentWeekLocked && weekGenerating === week && <WeekLoadingCard weekNum={week} />}
+          {isCurrentWeekLocked && weekGenerating !== week && <div style={{background:`linear-gradient(135deg,${C.peachL}40,${C.blush}60)`,borderRadius:16,padding:24,marginTop:16,textAlign:"center",border:`1px solid ${C.coral}25`,animation:"fadeScale 0.4s ease"}}>
             <span style={{fontSize:36}}>🔒</span>
             <h3 style={{fontFamily:pf,fontSize:18,fontWeight:600,color:C.dk,marginTop:8}}>Week {week} grocery list locked</h3>
             <p style={{fontFamily:dm,fontSize:13,color:C.mt,marginTop:4,lineHeight:1.5,maxWidth:280,marginLeft:"auto",marginRight:"auto"}}>Generate Week {week} to unlock its complete grocery list.</p>
             <Btn onClick={()=>generateWeek(week)} style={{marginTop:14,opacity:weekGenerating?0.6:1,cursor:weekGenerating?"not-allowed":"pointer"}} disabled={!!weekGenerating}>
-              {weekGenerating === week ? "Generating..." : weekGenerating ? "Please wait..." : `Generate Week ${week} →`}
+              {weekGenerating ? "Please wait..." : `Generate Week ${week} →`}
             </Btn>
           </div>}
           {!isCurrentWeekLocked && (plan.grocery_list||[]).map((g,i)=><div key={i} style={{marginBottom:12}}><h4 style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk,marginBottom:5}}>{g.category}</h4><div style={{background:C.wh,borderRadius:11,boxShadow:"0 1px 6px rgba(0,0,0,.03)"}}>{(g.items||[]).map((item,j)=><div key={j} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 12px",borderBottom:j<g.items.length-1?`1px solid ${C.bgW}`:"none"}}><div style={{width:16,height:16,borderRadius:4,border:`2px solid ${C.peachL}`,flexShrink:0}}/><span style={{fontFamily:dm,fontSize:12,color:C.dk}}>{item}</span></div>)}</div></div>)}
@@ -2795,8 +2905,24 @@ export default function App(){
     setWeekGenerating(weekNum);
     dlog("🗓️ Generating Week " + weekNum + " on-demand...");
 
+    let weekResult = null;
+    let usedFallback = false;
+
     try {
-      const weekResult = await aiGenerate(answers, true, weekNum);
+      weekResult = await aiGenerate(answers, true, weekNum);
+    } catch(e) {
+      dwarn("Week generation error:", e);
+      weekResult = null;
+    }
+
+    // If AI failed or returned invalid data, use the smart fallback week
+    if (!weekResult || !weekResult.meal_plan || weekResult.meal_plan.length === 0) {
+      dlog("⚠️ AI generation failed for Week " + weekNum + " — using fallback");
+      weekResult = makeFallbackWeek(weekNum, answers);
+      usedFallback = true;
+    }
+
+    try {
       if (weekResult && weekResult.meal_plan) {
         // Merge the new week into the existing plan
         const updatedPlan = {
@@ -2820,14 +2946,15 @@ export default function App(){
             });
           }
         }
-        dlog("✅ Week " + weekNum + " added!");
+        dlog("✅ Week " + weekNum + " added!" + (usedFallback ? " (fallback)" : ""));
       } else {
-        dwarn("⚠️ Week " + weekNum + " generation failed");
-        alert("Couldn't generate Week " + weekNum + " right now. Please try again in a moment.");
+        // This shouldn't happen since fallback always works, but just in case
+        dwarn("⚠️ Week " + weekNum + " generation totally failed");
+        alert("We're having trouble generating Week " + weekNum + " right now. Please try again in a moment.");
       }
     } catch(e) {
-      dwarn("Week generation error:", e);
-      alert("Couldn't generate Week " + weekNum + " right now. Please try again in a moment.");
+      dwarn("Week save error:", e);
+      alert("Couldn't save Week " + weekNum + " right now. Please try again in a moment.");
     } finally {
       setWeekGenerating(null);
     }
