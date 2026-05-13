@@ -13,7 +13,7 @@ const derror = (...args) => console.error(...args);
 const SB_URL = "https://fimsmaafruzbpoibepua.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZpbXNtYWFmcnV6YnBvaWJlcHVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNTcyNDUsImV4cCI6MjA5MTgzMzI0NX0.K6RZY9nb8NEcB9yFP4KJXlHyamXa5pFuPA-cmfbnQbI";
 const STRIPE_LINK = "https://buy.stripe.com/bJe3cvaiy2atd6LfZv38402";
-const INSTAGRAM_LINK = "https://www.instagram.com/fitwithhiral/";
+const INSTAGRAM_LINK = "https://www.instagram.com/nourishyou.ca/";
 const MAX_FREE_GENS = 3;
 const MAX_PAID_GENS = 10;
 const FREE_ACCESS_DAYS = 7;
@@ -1895,7 +1895,7 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
       <div style={{display:"flex",flexDirection:"column",gap:7}}>
         <button onClick={onRegen} style={{width:"100%",background:C.wh,border:`2px solid ${C.coral}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>🔄</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.coral}}>Generate New Plan <span style={{fontFamily:dm,fontSize:11,color:C.mtL,fontWeight:400}}>({genCount}/{isPaid?MAX_PAID_GENS:MAX_FREE_GENS} used)</span></div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>{isPaid?"Premium plan generations":"Retake quiz with new preferences"}</div></div></button>
         {!isPaid&&<button onClick={onUpgrade} style={{width:"100%",background:`linear-gradient(135deg,${C.coral},${C.coralL})`,border:"none",borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>⚡</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:"#fff"}}>Upgrade to Premium — $9.99 USD</div><div style={{fontFamily:dm,fontSize:10,color:"#ffffffaa"}}>28-day plan + 10 gens + PDF download</div></div></button>}
-        <button onClick={()=>window.open(INSTAGRAM_LINK,"_blank")} style={{width:"100%",background:C.wh,border:`2px solid ${C.peachL}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>📸</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Follow @fitwithhiral</div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>Tips, recipes & wellness on Instagram</div></div></button>
+        <button onClick={()=>window.open(INSTAGRAM_LINK,"_blank")} style={{width:"100%",background:C.wh,border:`2px solid ${C.peachL}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>📸</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Follow @nourishyou.ca</div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>Tips, recipes & wellness on Instagram</div></div></button>
         <button onClick={()=>setBtab("home")} style={{width:"100%",background:C.wh,border:`2px solid ${C.peachL}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>🏠</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Back to Home</div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>Return to your dashboard</div></div></button>
         {isPaid && <button onClick={generatePDF} style={{width:"100%",background:`linear-gradient(135deg,${C.coral}10,${C.peach}10)`,border:`2px solid ${C.coral}40`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{fontSize:16}}>📄</span><div style={{textAlign:"left"}}><div style={{fontFamily:dm,fontSize:13,fontWeight:600,color:C.dk}}>Download Plan as PDF</div><div style={{fontFamily:dm,fontSize:10,color:C.mtL}}>Beautifully designed, printable</div></div></button>}
 
@@ -1975,11 +1975,11 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
               </div>
               <span style={{fontFamily:dm,fontSize:10,color:C.coral,fontWeight:600}}>→</span>
             </a>
-            <a href="https://www.instagram.com/fitwithhiral/" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none",display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:C.bgW,borderRadius:10}}>
+            <a href="https://www.instagram.com/nourishyou.ca/" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none",display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:C.bgW,borderRadius:10}}>
               <span style={{fontSize:14}}>📸</span>
               <div style={{flex:1}}>
                 <div style={{fontFamily:dm,fontSize:11,fontWeight:600,color:C.dk}}>DM on Instagram</div>
-                <div style={{fontFamily:dm,fontSize:9,color:C.mtL}}>@fitwithhiral</div>
+                <div style={{fontFamily:dm,fontSize:9,color:C.mtL}}>@nourishyou.ca</div>
               </div>
               <span style={{fontFamily:dm,fontSize:10,color:C.coral,fontWeight:600}}>→</span>
             </a>
@@ -1988,6 +1988,14 @@ function DashScreen({plan,answers,user,onRegen,onReset,isPaid,genCount,onUpgrade
               <div style={{flex:1}}>
                 <div style={{fontFamily:dm,fontSize:11,fontWeight:600,color:C.dk}}>Follow on Pinterest</div>
                 <div style={{fontFamily:dm,fontSize:9,color:C.mtL}}>NourishYouStudio</div>
+              </div>
+              <span style={{fontFamily:dm,fontSize:10,color:C.coral,fontWeight:600}}>→</span>
+            </a>
+            <a href="https://www.facebook.com/NourishYouApp/" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none",display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:C.bgW,borderRadius:10}}>
+              <span style={{fontSize:14}}>👍</span>
+              <div style={{flex:1}}>
+                <div style={{fontFamily:dm,fontSize:11,fontWeight:600,color:C.dk}}>Like on Facebook</div>
+                <div style={{fontFamily:dm,fontSize:9,color:C.mtL}}>NourishYouApp</div>
               </div>
               <span style={{fontFamily:dm,fontSize:10,color:C.coral,fontWeight:600}}>→</span>
             </a>
@@ -3304,7 +3312,7 @@ export default function App(){
 </div>
 ${mealsHTML}
 <div class="footer-line">
-  <span>nourishyou.ca</span>·<span>@fitwithhiral</span>·<span>app.nourishyou.ca</span>
+  <span>nourishyou.ca</span>·<span>@nourishyou.ca</span>·<span>app.nourishyou.ca</span>
 </div>
 
 <!-- Workouts Section -->
@@ -3320,7 +3328,7 @@ ${(plan.workout_plan || []).length > 0 ? `
   </div>
   ${workoutsHTML}
   <div class="footer-line">
-    <span>nourishyou.ca</span>·<span>@fitwithhiral</span>·<span>app.nourishyou.ca</span>
+    <span>nourishyou.ca</span>·<span>@nourishyou.ca</span>·<span>app.nourishyou.ca</span>
   </div>
 ` : ''}
 
@@ -3333,7 +3341,7 @@ ${(plan.grocery_list || []).length > 0 ? `
   </div>
   ${groceryHTML}
   <div class="footer-line">
-    <span>nourishyou.ca</span>·<span>@fitwithhiral</span>·<span>app.nourishyou.ca</span>
+    <span>nourishyou.ca</span>·<span>@nourishyou.ca</span>·<span>app.nourishyou.ca</span>
   </div>
 ` : ''}
 
@@ -3361,7 +3369,7 @@ ${(plan.grocery_list || []).length > 0 ? `
       <span class="link-icon">📸</span>
       <div class="link-info">
         <div class="link-label">Instagram</div>
-        <div class="link-value">@fitwithhiral</div>
+        <div class="link-value">@nourishyou.ca</div>
       </div>
     </div>
   </div>
