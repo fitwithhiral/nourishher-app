@@ -898,8 +898,8 @@ function Testimonials() {
 // ─── EMAIL SCREEN — MAGIC LINK VERSION ───
 // Users now log in via a magic link sent to their email instead of entering email directly.
 // This provides proper authentication and protects database access.
-function EmailScreen({onSubmit,onLogin}){
-  const[name,setName]=useState("");const[email,setEmail]=useState("");const[loading,setLoading]=useState(false);const[err,setErr]=useState("");const[mode,setMode]=useState("signup");
+function EmailScreen({onSubmit,onLogin,initialMode="signup",initialEmail=""}){
+  const[name,setName]=useState("");const[email,setEmail]=useState(initialEmail);const[loading,setLoading]=useState(false);const[err,setErr]=useState("");const[mode,setMode]=useState(initialMode);
   const[sent,setSent]=useState(false); // Show "check your email" screen after sending
 
   const go=async()=>{
@@ -2391,6 +2391,7 @@ function OnboardingScreen({ onComplete, userName }) {
 export default function App(){
   const[screen,setScreen]=useState("welcome");const[step,setStep]=useState(0);const[answers,setAnswers]=useState({});const[user,setUser]=useState(null);const[plan,setPlan]=useState(null);const[progress,setProgress]=useState(0);
   const[authLoading,setAuthLoading]=useState(true); // True while checking auth state on mount
+  const[lastLogoutEmail,setLastLogoutEmail]=useState(""); // Remember email after logout for easy re-login
   const insertedTimestamps = useRef(new Set()); // Prevents duplicate plan inserts from React StrictMode/re-renders
 
   // ─── STREAK TRACKING ───
@@ -3569,9 +3570,15 @@ ${(plan.grocery_list || []).length > 0 ? `
   };
 
   const reset = async () => {
+    // Remember email for easy re-login
+    const lastEmail = user?.email || "";
     clearSession();
     await signOutAuth(); // Sign out from Supabase Auth
-    setScreen("welcome"); setStep(0); setAnswers({}); setUser(null); setPlan(null); setProgress(0); setGenCount(0); setIsPaid(false); setPlanHistory([]); setExpired(false);
+    setStep(0); setAnswers({}); setUser(null); setPlan(null); setProgress(0); setGenCount(0); setIsPaid(false); setPlanHistory([]); setExpired(false);
+    // Remember their email for the login screen so they don't have to retype it
+    setLastLogoutEmail(lastEmail);
+    // Send them to login screen (not welcome) so they can magic-link back in fast
+    setScreen("email");
   };
 
   // "Back to Home" from settings — keeps user logged in, goes to home tab
@@ -3583,6 +3590,7 @@ ${(plan.grocery_list || []).length > 0 ? `
     clearSession();
     await signOutAuth(); // Sign out from Supabase Auth
     setStep(0); setAnswers({}); setUser(null); setPlan(null); setProgress(0); setGenCount(0); setIsPaid(false); setPlanHistory([]); setExpired(false);
+    setLastLogoutEmail(""); // Clear remembered email — they want a different one
     setScreen("email");
   };
 
@@ -3610,7 +3618,7 @@ ${(plan.grocery_list || []).length > 0 ? `
   return <div style={{ maxWidth: 480, margin: "0 auto", background: C.bg, minHeight: "100vh", position: "relative", overflow: "hidden" }}>
     <style>{CSS}</style>
     {screen === "welcome" && <WelcomeScreen onStart={() => setScreen("email")} />}
-    {screen === "email" && <EmailScreen onSubmit={onEmail} onLogin={onLogin} />}
+    {screen === "email" && <EmailScreen onSubmit={onEmail} onLogin={onLogin} initialMode={lastLogoutEmail ? "login" : "signup"} initialEmail={lastLogoutEmail} />}
     {screen === "onboarding" && <OnboardingScreen onComplete={onOnboardingComplete} userName={user?.name} />}
     {screen === "quiz" && <QuizScreen step={step} answers={answers} onAnswer={onAnswer} onBack={onBack} onNext={onNext} />}
     {screen === "loading" && <LoadingScreen progress={progress} isPaid={isPaid} />}
