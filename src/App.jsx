@@ -77,10 +77,19 @@ async function getSupabase() {
 async function sendMagicLink(email) {
   try {
     const sb = await getSupabase();
+
+    // Determine the redirect URL: 
+    // - On iOS app (Capacitor): use custom URL scheme so link opens in app
+    // - On web: use the website origin
+    let redirectTo = window.location.origin;
+    if (typeof window !== "undefined" && window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+      redirectTo = "ca.nourishyou.app://auth-callback";
+    }
+
     const { data, error } = await sb.auth.signInWithOtp({
       email: email,
       options: {
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: redirectTo,
       }
     });
     if (error) {
@@ -2792,6 +2801,73 @@ export default function App(){
 
     return () => {
       if (authSubscription) authSubscription.unsubscribe();
+    };
+  }, []);
+
+  // ─── iOS Deep Link Handler ───
+  // When user clicks magic link in email on iPhone, iOS hands the URL to our app.
+  // We need to extract the auth tokens from that URL and complete the login.
+  // This only runs on iOS (Capacitor) — web users use the normal URL handling above.
+  useEffect(() => {
+    let appUrlListener = null;
+
+    const setupDeepLinkHandler = async () => {
+      try {
+        // Only run on Capacitor (iOS app) — skip on web
+        if (typeof window === "undefined") return;
+        const Capacitor = window.Capacitor;
+        if (!Capacitor || !Capacitor.isNativePlatform || !Capacitor.isNativePlatform()) {
+          return; // We're on web, not iOS app
+        }
+
+        // Dynamically import Capacitor App plugin (only on iOS)
+        const { App } = await import("@capacitor/app");
+
+        // Listen for incoming URLs (magic links)
+        appUrlListener = await App.addListener("appUrlOpen", async (event) => {
+          try {
+            const url = event.url;
+            if (!url) return;
+
+            // Magic link URLs from Supabase contain auth tokens in the hash
+            // Examples: 
+            //   ca.nourishyou.app://auth-callback#access_token=...&refresh_token=...
+            //   https://app.nourishyou.ca/#access_token=...&refresh_token=...
+            const urlObj = new URL(url);
+            const hash = urlObj.hash; // e.g. "#access_token=...&refresh_token=..."
+
+            if (hash && hash.includes("access_token")) {
+              // Parse the tokens from URL hash
+              const params = new URLSearchParams(hash.substring(1)); // remove leading #
+              const access_token = params.get("access_token");
+              const refresh_token = params.get("refresh_token");
+
+              if (access_token && refresh_token) {
+                // Manually set the session in Supabase
+                const sb = await getSupabase();
+                await sb.auth.setSession({ access_token, refresh_token });
+
+                // Reload the app state so it picks up the new session
+                // (The existing auth init code will handle linking the lead, etc.)
+                window.location.hash = "";
+                window.location.reload();
+              }
+            }
+          } catch (e) {
+            console.error("Deep link handler error:", e);
+          }
+        });
+      } catch (e) {
+        // Capacitor App plugin not available — we're on web
+      }
+    };
+
+    setupDeepLinkHandler();
+
+    return () => {
+      if (appUrlListener) {
+        try { appUrlListener.remove(); } catch(e) {}
+      }
     };
   }, []);
 
